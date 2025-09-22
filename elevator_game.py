@@ -3,6 +3,7 @@ import numpy as np
 from constants import *
 from elevator import Elevator
 from people_manager import PeopleManager
+import os
 
 class ElevatorGame:
     def __init__(self):
@@ -21,6 +22,29 @@ class ElevatorGame:
             self.background = pygame.Surface((WIDTH, HEIGHT))
             self.background.fill((200, 200, 200))
             self.background.set_alpha(128)
+
+        # IMAGES (maybe change later) ============================
+        self.floor_images = []
+        for i in range(1, NUM_FLOORS + 1):
+            # Adjust for file naming convention
+            filename = f"000{i}.png" if i < 10 else f"00{i}.png"
+            
+            try:
+                # Load the image
+                img = pygame.image.load(os.path.join("assets/images/player", filename)).convert_alpha()
+                
+                # Scale proportionally to a height of 100px
+                original_width, original_height = img.get_size()
+                aspect_ratio = original_width / original_height
+                new_width = int(400 * aspect_ratio)
+                scaled_img = pygame.transform.scale(img, (new_width, 400))
+                
+                self.floor_images.append(scaled_img)
+            except pygame.error as e:
+                print(f"Failed to load image {filename}: {e}")
+                self.floor_images.append(None) # Append a placeholder to maintain indexing
+
+
         
         # Game objects
         self.elevator = Elevator()
@@ -187,6 +211,21 @@ class ElevatorGame:
         # Clear screen and draw background
         self.screen.fill(WHITE)
         self.screen.blit(self.background, (0, 0))
+
+        # EDIT LATER MAYBE ===============================================
+        # Blit the image for the current target floor
+        if 0 <= self.target_floor < len(self.floor_images) and self.floor_images[self.target_floor] is not None:
+            # Get the image to blit
+            img_to_blit = self.floor_images[self.target_floor]
+            img_rect = img_to_blit.get_rect()
+            
+            # Position the image on the right half of the screen
+            # For example, centered vertically on the right side
+            img_rect.centerx = (WIDTH // 2) + (WIDTH // 4)
+            img_rect.centery = HEIGHT // 2 - 100
+            
+            # Blit the image to the screen
+            self.screen.blit(img_to_blit, img_rect)
         
         # Draw elevator shaft
         pygame.draw.rect(self.screen, BLUE, (RECT_X, RECT_Y, RECT_WIDTH, RECT_HEIGHT))
