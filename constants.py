@@ -1,0 +1,38 @@
+# Screen setup
+WIDTH, HEIGHT = 1280, 720
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+BLUE = (50, 100, 255)
+RED = (255, 50, 50)
+GREEN = (50, 255, 50)
+YELLOW = (255, 255, 50)
+PURPLE = (255, 50, 255)
+
+# Elevator shaft dimensions
+RECT_WIDTH, RECT_HEIGHT = 200, 600
+RECT_X = (WIDTH // 2 - RECT_WIDTH) // 4
+RECT_Y = (HEIGHT - RECT_HEIGHT) // 2
+
+# Elevator settings
+ELEV_WIDTH = 40
+NUM_FLOORS = 21
+
+# Motion parameters
+MAX_SPEED = 12.0
+ACCEL = 1.2
+DECEL = 1.6
+STOP_THRESHOLD = 1.5
+OVERSHOOT_FACTOR = 0.15
+
+# Slider settings
+SLIDER_BAR_Y = HEIGHT // 2 + 150
+SLIDER_BAR_WIDTH = WIDTH // 2 - 120
+SLIDER_BAR_X = WIDTH // 2 + 80
+SLIDER_BAR_HEIGHT = 6
+SLIDER_RADIUS = 12
+CURSOR_RADIUS = 8
+
+# Frame rate
+FPS = 60
