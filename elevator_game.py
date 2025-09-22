@@ -1,15 +1,38 @@
-import pygame
+import pygame, os
 import numpy as np
 from constants import *
 from elevator import Elevator
 from people_manager import PeopleManager
-import os
 
 class ElevatorGame:
     def __init__(self):
+        # Initialize pygame mixer for sound
+        pygame.mixer.init()
+        
         # Screen setup
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Elevator Simulation")
+        
+        # Load sound effects
+        try:
+            self.sound_exit = pygame.mixer.Sound("exit.ogg")
+            self.sound_enter = pygame.mixer.Sound("enter.ogg")
+            self.sound_elevator_move = pygame.mixer.Sound("elevator_move.ogg")
+            self.sound_elevator_stop = pygame.mixer.Sound("elevator_stop.ogg")
+            self.sound_pop = pygame.mixer.Sound("pop.ogg")
+            
+            # Load and play background music
+            pygame.mixer.music.load("bgm.ogg")
+            pygame.mixer.music.play(-1)  # Loop indefinitely
+            pygame.mixer.music.set_volume(0.5)  # Set background music volume
+        except pygame.error as e:
+            print(f"Could not load sound files: {e}")
+            # Create dummy sound objects if files don't exist
+            self.sound_exit = None
+            self.sound_enter = None
+            self.sound_elevator_move = None
+            self.sound_elevator_stop = None
+            self.sound_pop = None
         
         # Font and background
         self.font = pygame.font.SysFont("Arial", 36, bold=True)
@@ -22,8 +45,8 @@ class ElevatorGame:
             self.background = pygame.Surface((WIDTH, HEIGHT))
             self.background.fill((200, 200, 200))
             self.background.set_alpha(128)
-
-        # IMAGES (maybe change later) ============================
+        
+        # IMAGES (CHANGE LATER MAYBE) ===============================
         self.floor_images = []
         for i in range(1, NUM_FLOORS + 1):
             # Adjust for file naming convention
@@ -45,7 +68,7 @@ class ElevatorGame:
                 self.floor_images.append(None) # Append a placeholder to maintain indexing
 
 
-        
+
         # Game objects
         self.elevator = Elevator()
         self.people_manager = PeopleManager()
@@ -69,6 +92,10 @@ class ElevatorGame:
         self.bar_graph_x = SLIDER_BAR_X
         self.bar_graph_y = HEIGHT - self.bar_graph_height - 20
         
+        # Sound state tracking
+        self.elevator_was_moving = False
+        self.elevator_move_channel = None
+        
         # Hide default cursor and use custom one
         pygame.mouse.set_visible(False)
     
@@ -79,6 +106,10 @@ class ElevatorGame:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
+                    # Play pop sound
+                    if self.sound_pop:
+                        self.sound_pop.play()
+                    
                     # Toggle control mode
                     if self.control_mode == "mouse":
                         self.control_mode = "keyboard"
@@ -112,6 +143,24 @@ class ElevatorGame:
                         self.target_floor = max(0, self.target_floor - 1)
                     self.key_repeat_timer = 0
     
+    def handle_elevator_sounds(self):
+        """Handle elevator movement and stop sounds"""
+        elevator_is_moving = abs(self.elevator.speed) > 0.1
+        
+        if elevator_is_moving and not self.elevator_was_moving:
+            # Elevator just started moving - play movement sound on loop
+            if self.sound_elevator_move:
+                self.elevator_move_channel = self.sound_elevator_move.play(-1)  # Loop
+        elif not elevator_is_moving and self.elevator_was_moving:
+            # Elevator just stopped - stop movement sound and play stop sound
+            if self.elevator_move_channel:
+                self.elevator_move_channel.stop()
+                self.elevator_move_channel = None
+            if self.sound_elevator_stop:
+                self.sound_elevator_stop.play()
+        
+        self.elevator_was_moving = elevator_is_moving
+    
     def update(self):
         """Update game logic"""
         if self.control_mode == "keyboard":
@@ -139,8 +188,11 @@ class ElevatorGame:
         # Update elevator
         self.elevator.update(target_y)
         
+        # Handle elevator movement sounds
+        self.handle_elevator_sounds()
+        
         # Update people (pass elevator reference for streaming logic)
-        self.people_manager.update(self.elevator)
+        self.people_manager.update(self.elevator, self)  # Pass self for sound callbacks
     
     def draw_bar_graph(self):
         """Draw bar graph showing destination floor counts"""
@@ -211,9 +263,8 @@ class ElevatorGame:
         # Clear screen and draw background
         self.screen.fill(WHITE)
         self.screen.blit(self.background, (0, 0))
-
-        # EDIT LATER MAYBE ===============================================
-        # Blit the image for the current target floor
+        
+        # Character animation here ============
         if 0 <= self.target_floor < len(self.floor_images) and self.floor_images[self.target_floor] is not None:
             # Get the image to blit
             img_to_blit = self.floor_images[self.target_floor]
@@ -222,11 +273,12 @@ class ElevatorGame:
             # Position the image on the right half of the screen
             # For example, centered vertically on the right side
             img_rect.centerx = (WIDTH // 2) + (WIDTH // 4)
-            img_rect.centery = HEIGHT // 2 - 100
+            img_rect.centery = HEIGHT // 2 - 150
             
             # Blit the image to the screen
             self.screen.blit(img_to_blit, img_rect)
-        
+
+
         # Draw elevator shaft
         pygame.draw.rect(self.screen, BLUE, (RECT_X, RECT_Y, RECT_WIDTH, RECT_HEIGHT))
         

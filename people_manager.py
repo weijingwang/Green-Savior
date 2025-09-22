@@ -35,7 +35,7 @@ class PeopleManager:
         """Get the array of destination counts for the bar graph"""
         return self.destination_counts
         
-    def update(self, elevator):
+    def update(self, elevator, game=None):
         # Spawn new people
         self.spawn_timer += 1
         if self.spawn_timer >= self.spawn_interval:
@@ -44,10 +44,10 @@ class PeopleManager:
             self.spawn_interval = random.randint(15, 45)  # Reset with faster random interval
         
         # Handle people streaming into elevator
-        self.handle_elevator_boarding(elevator)
+        self.handle_elevator_boarding(elevator, game)
         
         # Handle people streaming out of elevator  
-        self.handle_elevator_exiting(elevator)
+        self.handle_elevator_exiting(elevator, game)
         
         # Update existing people
         people_to_remove = []
@@ -63,6 +63,10 @@ class PeopleManager:
                 )
                 self.elevator_passengers.append(passenger)
                 people_to_remove.append(person)
+                
+                # Play enter sound when person actually enters elevator
+                if game and game.sound_enter:
+                    game.sound_enter.play()
         
         # Remove people who entered elevator
         for person in people_to_remove:
@@ -85,7 +89,7 @@ class PeopleManager:
         # Update destination counts for bar graph
         self.update_destination_counts()
     
-    def handle_elevator_boarding(self, elevator):
+    def handle_elevator_boarding(self, elevator, game=None):
         """Handle people streaming into elevator when it arrives at their floor"""
         # Check each floor to see if elevator is on it
         for floor in range(NUM_FLOORS):
@@ -98,9 +102,11 @@ class PeopleManager:
                     for person in floor_people:
                         if person.waiting and not person.streaming_in:
                             person.start_streaming_in(elevator_center_x)
+                            # Note: Enter sound is now played when person actually reaches elevator
+                            # in the main update loop, not when they start streaming
                             break  # Only start one person at a time
     
-    def handle_elevator_exiting(self, elevator):
+    def handle_elevator_exiting(self, elevator, game=None):
         """Handle passengers exiting when elevator stops at their destination"""
         if not elevator.is_stopped_for_exit():
             self.exit_timer = 0  # Reset timer if elevator is moving
@@ -124,6 +130,10 @@ class PeopleManager:
                 passenger.start_streaming_out(elevator.get_center_x(), floor_y)
                 self.exiting_passengers.append(passenger)
                 passengers_to_remove.append(passenger)
+                
+                # Play exit sound
+                if game and game.sound_exit:
+                    game.sound_exit.play()
                 
                 # Reset timer for next passenger
                 self.exit_timer = 0
@@ -208,3 +218,11 @@ class PeopleManager:
                 # Update queue positions for remaining people on this floor
                 for i, remaining_person in enumerate(self.people_by_floor[person.floor]):
                     remaining_person.update_queue_position(i)
+        
+        # Also cleanup exiting passengers who have traveled far enough
+        remaining_passengers = []
+        for passenger in self.exiting_passengers:
+            # Let them travel further before removing (was -50, now -150)
+            if passenger.x > -150 and passenger.alpha > 0:
+                remaining_passengers.append(passenger)
+        self.exiting_passengers = remaining_passengers
