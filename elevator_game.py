@@ -1,5 +1,6 @@
 import pygame, os
 import numpy as np
+from datetime import datetime
 from constants import *
 from elevator import Elevator
 from people_manager import PeopleManager
@@ -36,6 +37,7 @@ class ElevatorGame:
         
         # Font and background
         self.font = pygame.font.SysFont("Arial", 36, bold=True)
+        self.date_time_font = pygame.font.SysFont("Arial", 24, bold=True)
         try:
             self.background = pygame.image.load("gameplay_draft.png").convert()
             self.background = pygame.transform.scale(self.background, (WIDTH, HEIGHT))
@@ -66,8 +68,6 @@ class ElevatorGame:
             except pygame.error as e:
                 print(f"Failed to load image {filename}: {e}")
                 self.floor_images.append(None) # Append a placeholder to maintain indexing
-
-
 
         # Game objects
         self.elevator = Elevator()
@@ -258,6 +258,37 @@ class ElevatorGame:
             label_text = label_font.render(str(floor_display_number), True, BLACK)
             self.screen.blit(label_text, (label_x, label_y))
     
+    def draw_date_time(self):
+        """Draw current date and time in top right corner"""
+        now = datetime.now()
+        
+        # Format day of week, date, and time
+        day_of_week = now.strftime("%A")  # Full day name
+        date_str = now.strftime("%b %d, %Y")  # Sep 22, 2025
+        time_str = now.strftime("%I:%M %p")  # 9:08 AM
+        
+        # Position in top right corner with some margin
+        margin = 20
+        line_height = 30
+        
+        # Draw day of week
+        day_text = self.date_time_font.render(day_of_week, True, BLACK)
+        day_rect = day_text.get_rect()
+        day_rect.topright = (WIDTH - margin, margin)
+        self.screen.blit(day_text, day_rect)
+        
+        # Draw date
+        date_text = self.date_time_font.render(date_str, True, BLACK)
+        date_rect = date_text.get_rect()
+        date_rect.topright = (WIDTH - margin, margin + line_height)
+        self.screen.blit(date_text, date_rect)
+        
+        # Draw time
+        time_text = self.date_time_font.render(time_str, True, BLACK)
+        time_rect = time_text.get_rect()
+        time_rect.topright = (WIDTH - margin, margin + line_height * 2)
+        self.screen.blit(time_text, time_rect)
+    
     def draw(self):
         """Draw everything to the screen"""
         # Clear screen and draw background
@@ -277,7 +308,6 @@ class ElevatorGame:
             
             # Blit the image to the screen
             self.screen.blit(img_to_blit, img_rect)
-
 
         # Draw elevator shaft
         pygame.draw.rect(self.screen, BLUE, (RECT_X, RECT_Y, RECT_WIDTH, RECT_HEIGHT))
@@ -308,6 +338,9 @@ class ElevatorGame:
         # Draw UI text
         self.draw_ui()
         
+        # Draw date and time in top right corner
+        self.draw_date_time()
+        
         # Draw custom cursor
         mouse_x, mouse_y = pygame.mouse.get_pos()
         pygame.draw.circle(self.screen, BLACK, (mouse_x, mouse_y), CURSOR_RADIUS)
@@ -329,8 +362,10 @@ class ElevatorGame:
         people_count_text = self.font.render(f"Waiting: {self.people_manager.get_people_count()}", True, BLACK)
         self.screen.blit(people_count_text, (20, 100))
         
-        # Elevator passengers
-        passenger_count_text = self.font.render(f"In Elevator: {self.people_manager.get_elevator_passenger_count()}", True, GREEN)
+        # Elevator passengers with capacity indicator
+        passenger_count = self.people_manager.get_elevator_passenger_count()
+        capacity_color = RED if passenger_count >= MAX_ELEVATOR_CAPACITY else GREEN
+        passenger_count_text = self.font.render(f"In Elevator: {passenger_count}/{MAX_ELEVATOR_CAPACITY}", True, capacity_color)
         self.screen.blit(passenger_count_text, (20, 140))
         
         # Current floor queue size

@@ -19,7 +19,7 @@ class PeopleManager:
         
         # Exit timing control
         self.exit_timer = 0
-        self.exit_interval = 20  # Frames between each person exiting (slower than boarding)
+        self.exit_interval = 10  # Frames between each person exiting (faster - was 20)
         
     def update_destination_counts(self):
         """Update the count of elevator passengers wanting to go to each floor"""
@@ -54,19 +54,26 @@ class PeopleManager:
         for person in self.all_people[:]:  # Use slice to avoid modification issues
             reached_elevator = person.update()
             if reached_elevator:
-                # Person has reached elevator, convert to passenger
-                passenger = ElevatorPassenger(
-                    person.destination_floor,
-                    person.color,
-                    person.radius,
-                    person.speed
-                )
-                self.elevator_passengers.append(passenger)
-                people_to_remove.append(person)
-                
-                # Play enter sound when person actually enters elevator
-                if game and game.sound_enter:
-                    game.sound_enter.play()
+                # Check if elevator has capacity before allowing person to enter
+                if len(self.elevator_passengers) < MAX_ELEVATOR_CAPACITY:
+                    # Person has reached elevator, convert to passenger
+                    passenger = ElevatorPassenger(
+                        person.destination_floor,
+                        person.color,
+                        person.radius,
+                        person.speed
+                    )
+                    self.elevator_passengers.append(passenger)
+                    people_to_remove.append(person)
+                    
+                    # Play enter sound when person actually enters elevator
+                    if game and game.sound_enter:
+                        game.sound_enter.play()
+                else:
+                    # Elevator is full, person needs to wait and move back to queue
+                    person.streaming_in = False
+                    person.waiting = False
+                    # They'll move back to their queue position
         
         # Remove people who entered elevator
         for person in people_to_remove:
@@ -91,6 +98,10 @@ class PeopleManager:
     
     def handle_elevator_boarding(self, elevator, game=None):
         """Handle people streaming into elevator when it arrives at their floor"""
+        # Check elevator capacity first - don't allow ANYONE to start boarding if full
+        if len(self.elevator_passengers) >= MAX_ELEVATOR_CAPACITY:
+            return  # Don't allow more people to start boarding if elevator is full
+        
         # Check each floor to see if elevator is on it
         for floor in range(NUM_FLOORS):
             if elevator.is_on_floor(floor) and floor in self.people_by_floor:
@@ -99,11 +110,14 @@ class PeopleManager:
                     elevator_center_x = elevator.get_center_x()
                     
                     # Only start streaming the FIRST person in line who isn't already streaming
+                    # AND only if there's still capacity
                     for person in floor_people:
                         if person.waiting and not person.streaming_in:
-                            person.start_streaming_in(elevator_center_x)
-                            # Note: Enter sound is now played when person actually reaches elevator
-                            # in the main update loop, not when they start streaming
+                            # Double-check capacity before allowing person to start streaming
+                            if len(self.elevator_passengers) < MAX_ELEVATOR_CAPACITY:
+                                person.start_streaming_in(elevator_center_x)
+                                # Note: Enter sound is now played when person actually reaches elevator
+                                # in the main update loop, not when they start streaming
                             break  # Only start one person at a time
     
     def handle_elevator_exiting(self, elevator, game=None):

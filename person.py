@@ -26,10 +26,12 @@ class Person:
         self.alpha = 255  # For fading effect when entering elevator
         
     def calculate_target_x(self):
-        # Line up horizontally to the right of the elevator
+        # Line up horizontally to the right of the elevator (not the building)
         # Each person takes up about 18 pixels of horizontal space
         person_spacing = 18
-        base_x = RECT_X + RECT_WIDTH + 15  # Start 15 pixels to the right of elevator
+        # Calculate elevator's right edge
+        elevator_right_edge = RECT_X + (RECT_WIDTH - ELEV_WIDTH) // 2 + ELEV_WIDTH
+        base_x = elevator_right_edge + 15  # Start 15 pixels to the right of elevator
         return base_x + (self.queue_position * person_spacing)
         
     def update_queue_position(self, new_position):

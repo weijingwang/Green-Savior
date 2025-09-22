@@ -18,6 +18,7 @@ RECT_Y = (HEIGHT - RECT_HEIGHT) // 2
 # Elevator settings
 ELEV_WIDTH = 40
 NUM_FLOORS = 21
+MAX_ELEVATOR_CAPACITY = 50  # Maximum number of people in elevator
 
 # Motion parameters
 MAX_SPEED = 12.0
@@ -39,6 +40,6 @@ FPS = 60
 
 # People streaming constants
 STREAM_IN_SPEED = 6.0  # Speed people move when streaming into elevator
-STREAM_OUT_SPEED = 6.0  # Speed people move when streaming out of elevator (slower)
-ELEVATOR_STOP_FRAMES = 2  # How long elevator must be stopped before people exit
-FADE_SPEED = 15  # How fast people fade when exiting (alpha decrease per frame)
+STREAM_OUT_SPEED = 10.0  # Speed people move when streaming out of elevator (faster)
+ELEVATOR_STOP_FRAMES = 1  # How long elevator must be stopped before people exit (reduced from 2)
+FADE_SPEED = 20  # How fast people fade when exiting (alpha decrease per frame - faster)
