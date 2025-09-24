@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """
-Long Neck Zombie Game
-A physics-based game with dynamic LOD system for performance optimization.
-
-Run this file to start the game.
+Long Neck Zombie Game - Refactored Version
+A physics-based game with simplified, readable code structure.
 """
 
 from game import Game

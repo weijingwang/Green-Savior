@@ -1,60 +1,75 @@
 import pygame
 import sys
-import math
 from config import *
 from camera import Camera
 from character import Character
 from environment import Environment
 from renderer import Renderer
+from performance import PerformanceManager
 
 class Game:
+    """Main game class that orchestrates all systems"""
+    
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Long Neck Zombie")
+        pygame.display.set_caption("Long Neck Zombie - Refactored")
         self.clock = pygame.time.Clock()
         
-        # Initialize game components
+        # Initialize game systems
         self.camera = Camera()
         self.character = Character()
         self.environment = Environment()
         self.renderer = Renderer(self.screen)
+        self.performance_manager = PerformanceManager()
         
         self.running = True
     
-    def handle_events(self):
-        """Handle pygame events"""
+    def run(self):
+        """Main game loop"""
+        while self.running:
+            self._handle_events()
+            self._update()
+            self._render()
+            self.clock.tick(FPS)
+        
+        self._cleanup()
+    
+    def _handle_events(self):
+        """Process input events"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
     
-    def update(self):
-        """Update game state"""
-        # Check if we need to zoom out
-        if self.character.check_head_bounds(self.camera):
-            self.camera.zoom_out()
-        
-        # Get mouse position in world coordinates
-        mx, my = pygame.mouse.get_pos()
-        world_mx, world_my = self.camera.screen_to_world(mx, my)
+    def _update(self):
+        """Update all game systems"""
+        # Get mouse target position
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        target_x, target_y = self.camera.screen_to_world(mouse_x, mouse_y)
         
         # Update character
-        torso_x, torso_y = self.character.update(world_mx, world_my, self.camera)
+        torso_pos = self.character.update(target_x, target_y, self.performance_manager)
         
         # Update camera to follow character
-        self.camera.update_position(torso_x, torso_y)
+        self.camera.follow_target(torso_pos[0], torso_pos[1])
+        
+        # Check if we need to zoom out
+        if self.character.is_head_at_screen_edge(self.camera):
+            self.camera.zoom_out()
         
         # Update environment
         self.environment.update(self.camera)
         
-        # Check collisions with red spots
-        if self.character.neck_positions:
-            head_x, head_y = self.character.neck_positions[-1]
-            self.environment.check_spot_collisions(head_x, head_y, self.character)
+        # Handle spot collections
+        if self.character.neck_segments:
+            head_pos = self.character.neck_segments[-1]
+            self.environment.check_spot_collections(
+                head_pos[0], head_pos[1], self.character
+            )
     
-    def render(self):
+    def _render(self):
         """Render everything to screen"""
-        self.renderer.clear()
+        self.renderer.clear_screen()
         
         # Draw environment
         for building in self.environment.buildings:
@@ -62,34 +77,18 @@ class Game:
         
         self.renderer.draw_ground(self.camera)
         
-        for spot in self.environment.red_spots:
-            self.renderer.draw_red_spot(spot, self.camera)
+        for spot in self.environment.spots:
+            self.renderer.draw_spot(spot, self.camera)
         
         # Draw character
-        if self.character.neck_positions:
-            torso_x = self.character.base_x + math.sin(self.character.walk_timer * 0.5) * 15
-            torso_y = self.character.base_y
-            step_phase = (math.sin(self.character.walk_timer) + 1) / 2
-            
-            if step_phase > 0.3:
-                torso_y = self.character.base_y - step_phase * 20
-            else:
-                torso_y = self.character.base_y - 14 + (math.sin(self.character.walk_timer * 12) * 6)
-            
-            self.renderer.draw_character(self.character, torso_x, torso_y, self.camera)
+        self.renderer.draw_character(self.character, self.camera, self.performance_manager)
         
         # Draw UI
-        self.renderer.draw_ui(self.character, self.camera)
+        self.renderer.draw_ui(self.character, self.camera, self.performance_manager)
         
         pygame.display.flip()
     
-    def run(self):
-        """Main game loop"""
-        while self.running:
-            self.handle_events()
-            self.update()
-            self.render()
-            self.clock.tick(FPS)
-        
+    def _cleanup(self):
+        """Clean up resources"""
         pygame.quit()
         sys.exit()

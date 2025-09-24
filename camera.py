@@ -1,35 +1,30 @@
-from config import WIDTH, HEIGHT, ZOOM_SPEED, LOD_LEVELS
+from config import WIDTH, HEIGHT, ZOOM_SPEED, MIN_ZOOM
 
 class Camera:
+    """Handles camera position and zoom with world-screen coordinate conversion"""
+    
     def __init__(self):
-        self.zoom_factor = 1.0
         self.x = 0
         self.y = 0
+        self.zoom = 1.0
     
-    def world_to_screen(self, x, y):
+    def world_to_screen(self, world_x, world_y):
         """Convert world coordinates to screen coordinates"""
-        screen_x = (x - self.x) * self.zoom_factor + WIDTH // 2
-        screen_y = (y - self.y) * self.zoom_factor + HEIGHT // 2
+        screen_x = (world_x - self.x) * self.zoom + WIDTH // 2
+        screen_y = (world_y - self.y) * self.zoom + HEIGHT // 2
         return screen_x, screen_y
     
-    def screen_to_world(self, x, y):
+    def screen_to_world(self, screen_x, screen_y):
         """Convert screen coordinates to world coordinates"""
-        world_x = (x - WIDTH // 2) / self.zoom_factor + self.x
-        world_y = (y - HEIGHT // 2) / self.zoom_factor + self.y
+        world_x = (screen_x - WIDTH // 2) / self.zoom + self.x
+        world_y = (screen_y - HEIGHT // 2) / self.zoom + self.y
         return world_x, world_y
     
-    def update_position(self, target_x, target_y):
-        """Update camera position to follow target"""
+    def follow_target(self, target_x, target_y):
+        """Update camera to follow target position"""
         self.x = target_x
         self.y = target_y
     
     def zoom_out(self):
-        """Gradually zoom out"""
-        self.zoom_factor = max(0.0005, self.zoom_factor - ZOOM_SPEED)  # Much smaller minimum for skyscraper scale
-    
-    def get_current_lod(self):
-        """Get current LOD settings based on zoom level"""
-        for threshold in sorted(LOD_LEVELS.keys(), reverse=True):
-            if self.zoom_factor >= threshold:
-                return LOD_LEVELS[threshold]
-        return LOD_LEVELS[0.01]
+        """Gradually zoom out when character grows"""
+        self.zoom = max(MIN_ZOOM, self.zoom - ZOOM_SPEED)

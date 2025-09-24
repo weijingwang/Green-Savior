@@ -3,63 +3,79 @@ import math
 from config import *
 
 class Building:
-    def __init__(self, x):
-        self.x = x
+    """A building in the scrolling environment"""
+    
+    def __init__(self, x_position):
+        self.x = x_position
         self.width = random.randint(int(WIDTH * 1.5), int(WIDTH * 3))
         self.height = random.randint(int(HEIGHT * 0.6), int(HEIGHT * 0.95))
-        self.y = 100 - self.height
+        self.y = GROUND_Y - self.height
         
-        # Window configuration
-        self.window_w = max(30, self.width // 15)
-        self.window_h = max(50, self.height // 20)
-        self.spacing_x = self.window_w // 2
-        self.spacing_y = self.window_h // 2
+        # Generate window pattern
+        self.windows = self._generate_windows()
+    
+    def _generate_windows(self):
+        """Generate random window lighting pattern"""
+        window_w = max(30, self.width // 15)
+        window_h = max(50, self.height // 20)
+        cols = max(1, self.width // (window_w + window_w // 2))
+        rows = max(1, self.height // (window_h + window_h // 2))
         
-        self.cols = max(1, self.width // (self.window_w + self.spacing_x))
-        self.rows = max(1, self.height // (self.window_h + self.spacing_y))
+        windows = []
+        for r in range(rows):
+            row = [random.random() > 0.35 for c in range(cols)]
+            windows.append(row)
         
-        # Generate random window lighting
-        self.windows = []
-        for r in range(self.rows):
-            row = [random.random() > 0.35 for c in range(self.cols)]
-            self.windows.append(row)
+        return {
+            'pattern': windows,
+            'window_w': window_w,
+            'window_h': window_h,
+            'cols': cols,
+            'rows': rows
+        }
     
     def update(self):
-        """Update building position"""
+        """Move building left"""
         self.x -= BUILDING_SPEED
     
-    def is_offscreen(self, camera):
+    def is_offscreen(self, camera_x, screen_width):
         """Check if building is completely offscreen"""
-        return self.x + self.width < camera.x - WIDTH // camera.zoom_factor
+        return self.x + self.width < camera_x - screen_width
 
-class RedSpot:
+
+class CollectibleSpot:
+    """Red collectible spots that make the neck grow"""
+    
     def __init__(self, x, y):
         self.x = x
         self.y = y
         self.radius = 12
-        self.timer = 0.0
+        self.collection_timer = 0.0
     
     def update(self):
-        """Update spot position"""
+        """Move spot left"""
         self.x -= BUILDING_SPEED
     
-    def is_offscreen(self, camera):
+    def is_offscreen(self, camera_x, screen_width):
         """Check if spot is offscreen"""
-        return self.x + self.radius < camera.x - WIDTH // camera.zoom_factor
+        return self.x + self.radius < camera_x - screen_width
     
     def check_collision(self, head_x, head_y):
-        """Check collision with character head"""
-        dist = math.hypot(head_x - self.x, head_y - self.y)
-        return dist < HEAD_RADIUS + self.radius
+        """Check if head is colliding with this spot"""
+        distance = math.hypot(head_x - self.x, head_y - self.y)
+        return distance < HEAD_RADIUS + self.radius
+
 
 class Environment:
+    """Manages buildings and collectible spots"""
+    
     def __init__(self):
         self.buildings = []
-        self.red_spots = []
+        self.spots = []
         self._spawn_initial_buildings()
     
     def _spawn_initial_buildings(self):
-        """Spawn initial set of buildings"""
+        """Create initial set of buildings"""
         x_pos = 0
         while x_pos < WIDTH * 2:
             building = Building(x_pos)
@@ -68,49 +84,61 @@ class Environment:
     
     def update(self, camera):
         """Update all environment objects"""
-        # Update buildings
+        self._update_buildings(camera)
+        self._update_spots(camera)
+        self._spawn_new_content(camera)
+    
+    def _update_buildings(self, camera):
+        """Update building positions and remove offscreen ones"""
         for building in self.buildings:
             building.update()
         
-        # Remove offscreen buildings and spawn new ones
-        self.buildings = [b for b in self.buildings if not b.is_offscreen(camera)]
+        screen_width = WIDTH // camera.zoom
+        self.buildings = [b for b in self.buildings 
+                         if not b.is_offscreen(camera.x, screen_width)]
+    
+    def _update_spots(self, camera):
+        """Update spot positions and remove offscreen ones"""
+        for spot in self.spots:
+            spot.update()
         
+        screen_width = WIDTH // camera.zoom
+        self.spots = [s for s in self.spots 
+                     if not s.is_offscreen(camera.x, screen_width)]
+    
+    def _spawn_new_content(self, camera):
+        """Spawn new buildings and spots as needed"""
+        # Spawn new buildings
         if self.buildings:
             last_building = self.buildings[-1]
-            if last_building.x + last_building.width < camera.x + WIDTH // camera.zoom_factor:
+            screen_width = WIDTH // camera.zoom
+            if last_building.x + last_building.width < camera.x + screen_width:
                 new_x = last_building.x + last_building.width + 200
                 self.buildings.append(Building(new_x))
         
-        # Spawn red spots randomly
+        # Spawn new spots randomly
         if random.random() < SPOT_SPAWN_CHANCE:
-            self._spawn_red_spot()
-        
-        # Update red spots
-        for spot in self.red_spots:
-            spot.update()
-        
-        # Remove offscreen spots
-        self.red_spots = [s for s in self.red_spots if not s.is_offscreen(camera)]
+            self._try_spawn_spot()
     
-    def _spawn_red_spot(self):
-        """Spawn a new red spot if conditions are met"""
-        x = 400 + random.randint(100, 400)
-        y = random.randint(-50, 50)
+    def _try_spawn_spot(self):
+        """Try to spawn a new spot with distance constraints"""
+        new_x = 400 + random.randint(100, 400)
+        new_y = random.randint(-50, 50)
         
         # Check minimum distance from existing spots
-        for spot in self.red_spots:
-            if abs(spot.x - x) < MIN_SPOT_DISTANCE:
+        for spot in self.spots:
+            if abs(spot.x - new_x) < MIN_SPOT_DISTANCE:
                 return
         
-        self.red_spots.append(RedSpot(x, y))
+        self.spots.append(CollectibleSpot(new_x, new_y))
     
-    def check_spot_collisions(self, head_x, head_y, character):
-        """Check collisions between head and red spots"""
-        for spot in self.red_spots:
+    def check_spot_collections(self, head_x, head_y, character):
+        """Handle spot collection logic"""
+        for spot in self.spots:
             if spot.check_collision(head_x, head_y):
-                spot.timer += 1 / FPS
-                if spot.timer >= 1.0:
-                    character.add_segment()
-                    spot.timer = 0.0
+                spot.collection_timer += 1 / FPS
+                if spot.collection_timer >= 1.0:  # 1 second collection time
+                    character.add_neck_segment()
+                    spot.collection_timer = 0.0
             else:
-                spot.timer = 0.0
+                spot.collection_timer = 0.0

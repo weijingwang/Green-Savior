@@ -2,158 +2,157 @@ import pygame
 from config import *
 
 class Renderer:
+    """Handles all rendering operations"""
+    
     def __init__(self, screen):
         self.screen = screen
         self.font = pygame.font.Font(None, 28)
     
-    def clear(self):
+    def clear_screen(self):
         """Clear screen with background color"""
         self.screen.fill(BG_COLOR)
     
     def draw_ground(self, camera):
         """Draw the ground plane"""
-        ground_screen_x, ground_screen_y = camera.world_to_screen(-WIDTH * 2, 100)
-        if 0 < ground_screen_y < HEIGHT:
+        ground_x, ground_y = camera.world_to_screen(-WIDTH * 2, GROUND_Y)
+        if 0 < ground_y < HEIGHT:
             pygame.draw.rect(self.screen, (20, 20, 50), 
-                           (0, ground_screen_y, WIDTH, HEIGHT - ground_screen_y))
+                           (0, ground_y, WIDTH, HEIGHT - ground_y))
     
     def draw_building(self, building, camera):
-        """Draw a single building with windows"""
+        """Draw a building with windows"""
         screen_x, screen_y = camera.world_to_screen(building.x, building.y)
-        screen_w = building.width * camera.zoom_factor
-        screen_h = building.height * camera.zoom_factor
+        screen_w = building.width * camera.zoom
+        screen_h = building.height * camera.zoom
         
-        # Only draw if visible
-        if not (screen_x + screen_w > 0 and screen_x < WIDTH and 
-                screen_y + screen_h > 0 and screen_y < HEIGHT):
+        # Skip if not visible
+        if not self._is_rect_visible(screen_x, screen_y, screen_w, screen_h):
             return
         
-        # Draw building
+        # Draw building body
         rect = pygame.Rect(screen_x, screen_y, screen_w, screen_h)
         pygame.draw.rect(self.screen, BUILDING_COLOR, rect)
         
         # Draw windows
-        window_w = building.window_w * camera.zoom_factor
-        window_h = building.window_h * camera.zoom_factor
-        spacing_x = building.spacing_x * camera.zoom_factor
-        spacing_y = building.spacing_y * camera.zoom_factor
+        self._draw_building_windows(building, screen_x, screen_y, camera)
+    
+    def _draw_building_windows(self, building, screen_x, screen_y, camera):
+        """Draw windows on a building"""
+        windows = building.windows
+        window_w = windows['window_w'] * camera.zoom
+        window_h = windows['window_h'] * camera.zoom
         
-        for r in range(building.rows):
-            for c in range(building.cols):
-                if building.windows[r][c]:
-                    wx = screen_x + 10 * camera.zoom_factor + c * (window_w + spacing_x)
-                    wy = screen_y + 10 * camera.zoom_factor + r * (window_h + spacing_y)
+        if window_w < 1 or window_h < 1:
+            return
+        
+        for r in range(windows['rows']):
+            for c in range(windows['cols']):
+                if windows['pattern'][r][c]:
+                    wx = screen_x + 10 * camera.zoom + c * (window_w * 1.5)
+                    wy = screen_y + 10 * camera.zoom + r * (window_h * 1.5)
                     
-                    if (wx + window_w < screen_x + screen_w and 
-                        wy + window_h < screen_y + screen_h and
-                        window_w > 1 and window_h > 1):
-                        pygame.draw.rect(self.screen, WINDOW_COLOR, 
-                                       (wx, wy, window_w, window_h))
+                    pygame.draw.rect(self.screen, WINDOW_COLOR, 
+                                   (wx, wy, window_w, window_h))
     
-    def draw_red_spot(self, spot, camera):
-        """Draw a red spot"""
+    def draw_spot(self, spot, camera):
+        """Draw a collectible spot"""
         screen_x, screen_y = camera.world_to_screen(spot.x, spot.y)
-        screen_radius = max(1, int(spot.radius * camera.zoom_factor))
+        radius = max(1, int(spot.radius * camera.zoom))
         
-        if (screen_x + screen_radius > 0 and screen_x - screen_radius < WIDTH and
-            screen_y + screen_radius > 0 and screen_y - screen_radius < HEIGHT):
+        if self._is_circle_visible(screen_x, screen_y, radius):
             pygame.draw.circle(self.screen, SPOT_COLOR, 
-                             (int(screen_x), int(screen_y)), screen_radius)
+                             (int(screen_x), int(screen_y)), radius)
     
-    def draw_character(self, character, torso_x, torso_y, camera):
+    def draw_character(self, character, camera, performance_manager):
         """Draw the character with optimized neck rendering"""
+        torso_pos = character._get_torso_position()
+        
         # Draw torso
-        torso_screen_x, torso_screen_y = camera.world_to_screen(torso_x, torso_y)
-        torso_radius = max(1, int(TORSO_RADIUS * camera.zoom_factor))
+        self._draw_torso(torso_pos, camera)
+        
+        # Draw neck with LOD optimization
+        self._draw_neck_optimized(character, camera, performance_manager)
+    
+    def _draw_torso(self, torso_pos, camera):
+        """Draw character torso"""
+        screen_x, screen_y = camera.world_to_screen(torso_pos[0], torso_pos[1])
+        radius = max(1, int(TORSO_RADIUS * camera.zoom))
+        
         pygame.draw.circle(self.screen, TORSO_COLOR, 
-                         (int(torso_screen_x), int(torso_screen_y)), torso_radius)
+                         (int(screen_x), int(screen_y)), radius)
+    
+    def _draw_neck_optimized(self, character, camera, performance_manager):
+        """Draw neck segments with LOD optimization"""
+        lod = performance_manager.get_lod_settings(camera.zoom)
+        segments_to_draw = self._get_segments_to_draw(character.neck_segments, lod)
         
-        # Get visible neck segments with LOD
-        visible_segments = self._get_visible_neck_segments(character, camera)
-        
-        # Draw neck segments
-        for i, pos in visible_segments:
+        for i, pos in segments_to_draw:
             screen_x, screen_y = camera.world_to_screen(pos[0], pos[1])
             
-            if i == len(character.neck_positions) - 1:
+            if i == len(character.neck_segments) - 1:
                 # Draw head
-                head_radius = max(1, int(HEAD_RADIUS * camera.zoom_factor))
-                if self._should_draw_segment(screen_x, screen_y, head_radius):
+                radius = max(1, int(HEAD_RADIUS * camera.zoom))
+                if self._is_circle_visible(screen_x, screen_y, radius):
                     pygame.draw.circle(self.screen, HEAD_COLOR, 
-                                     (int(screen_x), int(screen_y)), head_radius)
+                                     (int(screen_x), int(screen_y)), radius)
             else:
                 # Draw neck segment
-                base_radius = NECK_RADIUS * (1 - i / max(1, len(character.neck_positions)) * 0.4)
-                radius = max(1, int(base_radius * camera.zoom_factor))
+                base_radius = NECK_RADIUS * (1 - i / max(1, len(character.neck_segments)) * 0.4)
+                radius = max(1, int(base_radius * camera.zoom))
                 
-                # Dynamic thickness for extreme zooms
-                if camera.zoom_factor < 0.1:
-                    radius = max(radius, 4)
-                elif camera.zoom_factor < 0.05:
-                    radius = max(radius, 6)
-                elif camera.zoom_factor < 0.02:
+                # Boost radius for extreme zooms
+                if camera.zoom < 0.02:
                     radius = max(radius, 8)
                 
-                if self._should_draw_segment(screen_x, screen_y, radius):
+                if self._is_circle_visible(screen_x, screen_y, radius):
                     pygame.draw.circle(self.screen, NECK_COLOR, 
                                      (int(screen_x), int(screen_y)), radius)
     
-    def _get_visible_neck_segments(self, character, camera):
-        """Get optimized list of neck segments to draw"""
-        lod = camera.get_current_lod()
-        total_segments = len(character.neck_positions)
-        max_segments = lod["segments"]
+    def _get_segments_to_draw(self, all_segments, lod):
+        """Get optimized list of segments to draw based on LOD"""
+        max_segments = lod['max_segments']
+        total_segments = len(all_segments)
         
         if max_segments == -1 or total_segments <= max_segments:
-            return list(enumerate(character.neck_positions))
+            return list(enumerate(all_segments))
         
-        # Ultra-low detail: key segments only
-        if max_segments <= 8:
-            indices = [0]  # First segment
-            if max_segments > 2:
-                for i in range(1, max_segments - 1):
-                    idx = int((i / (max_segments - 1)) * (total_segments - 1))
-                    indices.append(idx)
-            indices.append(total_segments - 1)  # Head
-            return [(i, character.neck_positions[i]) for i in indices]
+        # Sample segments evenly
+        segments_to_draw = []
+        step = total_segments / max_segments
         
-        # Regular LOD: skip segments mathematically
-        skip_ratio = max(1, total_segments // max_segments)
-        visible_segments = []
+        for i in range(max_segments):
+            segment_index = int(i * step)
+            segments_to_draw.append((segment_index, all_segments[segment_index]))
         
-        for i in range(0, total_segments, skip_ratio):
-            visible_segments.append((i, character.neck_positions[i]))
+        # Always include the head
+        if segments_to_draw[-1][0] != total_segments - 1:
+            segments_to_draw.append((total_segments - 1, all_segments[-1]))
         
-        # Always include head
-        if visible_segments[-1][0] != total_segments - 1:
-            visible_segments.append((total_segments - 1, character.neck_positions[-1]))
-        
-        return visible_segments
+        return segments_to_draw
     
-    def _should_draw_segment(self, screen_x, screen_y, radius):
-        """Check if segment should be drawn based on size and bounds"""
-        if radius < SEGMENT_CULL_RADIUS:
-            return False
-        
-        margin = radius + 10
-        return not (screen_x < -margin or screen_x > WIDTH + margin or 
-                   screen_y < -margin or screen_y > HEIGHT + margin)
-    
-    def draw_ui(self, character, camera):
+    def draw_ui(self, character, camera, performance_manager):
         """Draw UI information"""
-        lod = camera.get_current_lod()
-        visible_count = len(self._get_visible_neck_segments(character, camera))
+        lod = performance_manager.get_lod_settings(camera.zoom)
         
-        info_texts = [
-            f"Zoom: {camera.zoom_factor:.3f}x",
-            f"Total Segments: {len(character.neck_positions)}",
-            f"Visible: {visible_count}",
+        info_lines = [
+            f"Zoom: {camera.zoom:.3f}x",
+            f"Segments: {len(character.neck_segments)}",
             f"LOD: {lod['name']}",
             f"Physics Skip: {lod['physics_skip']}"
         ]
         
-        y_offset = 10
-        for text in info_texts:
-            text_surface = self.font.render(text, True, (255, 255, 255))
-            self.screen.blit(text_surface, (10, y_offset))
-            y_offset += 25
+        y_pos = 10
+        for line in info_lines:
+            text_surface = self.font.render(line, True, (255, 255, 255))
+            self.screen.blit(text_surface, (10, y_pos))
+            y_pos += 25
+    
+    def _is_rect_visible(self, x, y, w, h):
+        """Check if rectangle is visible on screen"""
+        return not (x + w < 0 or x > WIDTH or y + h < 0 or y > HEIGHT)
+    
+    def _is_circle_visible(self, x, y, radius):
+        """Check if circle is visible on screen"""
+        margin = radius + 10
+        return not (x < -margin or x > WIDTH + margin or 
+                   y < -margin or y > HEIGHT + margin)

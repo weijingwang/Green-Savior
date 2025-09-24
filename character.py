@@ -1,179 +1,83 @@
 import math
 from config import *
+from physics import NeckPhysics
 
 class Character:
-    def __init__(self):
-        self.base_x = 0
-        self.base_y = 0
-        self.neck_positions = [(self.base_x, self.base_y - (i + 1) * SEGMENT_LENGTH) 
-                              for i in range(NECK_SEGMENTS)]
-        self.walk_timer = 0
-        self.physics_frame_counter = 0
+    """Main character with physics-based neck"""
     
-    def update(self, target_x, target_y, camera):
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        self.neck_segments = self._create_initial_segments()
+        self.walk_timer = 0
+        self.physics = NeckPhysics()
+    
+    def _create_initial_segments(self):
+        """Create initial neck segments"""
+        segments = []
+        for i in range(INITIAL_NECK_SEGMENTS):
+            y = self.y - (i + 1) * SEGMENT_LENGTH
+            segments.append((self.x, y))
+        return segments
+    
+    def update(self, target_x, target_y, performance_manager):
         """Update character position and neck physics"""
-        # Update walk animation
         self.walk_timer += 0.05
+        
+        # Calculate torso position with walking animation
+        torso_pos = self._get_torso_position()
+        
+        # Update neck physics if performance allows
+        if performance_manager.should_update_physics(1.0):  # TODO: pass actual zoom
+            complexity = self._get_physics_complexity(len(self.neck_segments))
+            base_pos = (torso_pos[0], torso_pos[1] - TORSO_RADIUS)
+            
+            self.neck_segments = self.physics.update_segments(
+                self.neck_segments, base_pos, (target_x, target_y), complexity
+            )
+        
+        return torso_pos
+    
+    def _get_torso_position(self):
+        """Calculate torso position with walking animation"""
         step_phase = (math.sin(self.walk_timer) + 1) / 2
         
-        # Calculate torso position with jerky zombie walk
+        # Jerky zombie walk animation
         if step_phase > 0.3:
-            torso_y = self.base_y - step_phase * 20
+            torso_y = self.y - step_phase * 20
         else:
-            torso_y = self.base_y - 14 + (math.sin(self.walk_timer * 12) * 6)
+            torso_y = self.y - 14 + math.sin(self.walk_timer * 12) * 6
         
-        torso_x = self.base_x + math.sin(self.walk_timer * 0.5) * 15
+        torso_x = self.x + math.sin(self.walk_timer * 0.5) * 15
         
-        # Update neck physics
-        self.neck_positions = self._update_neck_optimized(
-            (torso_x, torso_y), (target_x, target_y), camera
-        )
-        
-        return torso_x, torso_y
+        return (torso_x, torso_y)
     
-    def _update_neck_optimized(self, base, target, camera):
-        """Optimized neck physics with LOD"""
-        lod = camera.get_current_lod()
-        physics_skip = lod["physics_skip"]
-        
-        self.physics_frame_counter += 1
-        
-        # Skip physics updates for performance
-        if self.physics_frame_counter % physics_skip != 0:
-            return self.neck_positions
-        
-        # Use different physics based on segment count and zoom
-        segment_count = len(self.neck_positions)
-        
-        # Keep responsive physics longer, but optimize for high segment counts
-        if segment_count > 200 or camera.zoom_factor < 0.01:
-            return self._update_neck_simplified(base, target)
+    def _get_physics_complexity(self, segment_count):
+        """Determine physics complexity based on segment count"""
+        if segment_count > 200:
+            return 'simple'
         elif segment_count > 150:
-            return self._update_neck_medium(base, target)
+            return 'medium'
         else:
-            return self._update_neck_regular(base, target)
+            return 'normal'
     
-    def _update_neck_simplified(self, base, target):
-        """Ultra-simplified neck physics for extreme zooms"""
-        points = self.neck_positions[:]
-        points[0] = (base[0], base[1] - TORSO_RADIUS)
-        
-        total_segments = len(points)
-        for i in range(10, total_segments, 10):
-            progress = i / total_segments
-            x = base[0] + (target[0] - base[0]) * progress
-            y = base[1] + (target[1] - base[1]) * progress
-            
-            if y > 100:  # Ground collision
-                y = 100
-            points[i] = (x, y)
-        
-        # Always update head
-        if total_segments > 0:
-            head_x, head_y = target
-            if head_y > 100:
-                head_y = 100
-            points[-1] = (head_x, head_y)
-        
-        return points
-    
-    def _update_neck_medium(self, base, target, stiffness=0.25):
-        """Medium optimization neck physics for moderate segment counts"""
-        points = self.neck_positions[:]
-        points[0] = (base[0], base[1] - TORSO_RADIUS)
-        
-        # Update every other segment for performance, but keep accuracy
-        for i in range(2, len(points), 2):  # Skip every other segment
-            # Calculate direction to target
-            dx = target[0] - points[i-2][0]
-            dy = target[1] - points[i-2][1]
-            dist = math.hypot(dx, dy)
-            if dist == 0:
-                dist = 0.0001
-            
-            dx /= dist
-            dy /= dist
-            desired_x = points[i-2][0] + dx * (SEGMENT_LENGTH * 2)  # Double length since skipping
-            desired_y = points[i-2][1] + dy * (SEGMENT_LENGTH * 2)
-            
-            # Apply stiffness
-            x = points[i][0] * (1 - stiffness) + desired_x * stiffness
-            y = points[i][1] * (1 - stiffness) + desired_y * stiffness
-            
-            # Ground collision
-            if y > 100:
-                y = 100
-            points[i] = (x, y)
-            
-            # Interpolate the skipped segment
-            if i > 0:
-                points[i-1] = ((points[i-2][0] + points[i][0]) / 2, 
-                              (points[i-2][1] + points[i][1]) / 2)
-        
-        # Always update head properly
-        if len(points) > 2:
-            head_x, head_y = target
-            if head_y > 100:
-                head_y = 100
-            points[-1] = (head_x, head_y)
-        
-        return points
-
-    def _update_neck_regular(self, base, target, stiffness=0.15):
-        """Regular neck physics for normal zooms"""
-        points = self.neck_positions[:]
-        points[0] = (base[0], base[1] - TORSO_RADIUS)
-        
-        for i in range(1, len(points)):
-            # Calculate direction to target
-            dx = target[0] - points[i-1][0]
-            dy = target[1] - points[i-1][1]
-            dist = math.hypot(dx, dy)
-            if dist == 0:
-                dist = 0.0001
-            
-            dx /= dist
-            dy /= dist
-            desired_x = points[i-1][0] + dx * SEGMENT_LENGTH
-            desired_y = points[i-1][1] + dy * SEGMENT_LENGTH
-            
-            # Apply stiffness
-            x = points[i][0] * (1 - stiffness) + desired_x * stiffness
-            y = points[i][1] * (1 - stiffness) + desired_y * stiffness
-            
-            # Maintain segment length
-            dx = x - points[i-1][0]
-            dy = y - points[i-1][1]
-            dist = math.hypot(dx, dy)
-            if dist == 0:
-                dist = 0.0001
-            
-            dx /= dist
-            dy /= dist
-            px = points[i-1][0] + dx * SEGMENT_LENGTH
-            py = points[i-1][1] + dy * SEGMENT_LENGTH
-            
-            # Ground collision
-            if py > 100:
-                py = 100
-            points[i] = (px, py)
-        
-        return points
-    
-    def check_head_bounds(self, camera):
-        """Check if head is hitting screen edges"""
-        if not self.neck_positions:
+    def is_head_at_screen_edge(self, camera):
+        """Check if head is near screen edges"""
+        if not self.neck_segments:
             return False
         
-        head_pos = self.neck_positions[-1]
+        head_pos = self.neck_segments[-1]
         screen_x, screen_y = camera.world_to_screen(head_pos[0], head_pos[1])
         
-        head_screen_radius = HEAD_RADIUS * camera.zoom_factor
-        margin = head_screen_radius + 10
+        head_radius = HEAD_RADIUS * camera.zoom
+        margin = head_radius + 10
         
-        return (screen_x < margin or screen_x > WIDTH - margin or screen_y < margin)
+        return (screen_x < margin or 
+                screen_x > WIDTH - margin or 
+                screen_y < margin)
     
-    def add_segment(self):
-        """Add a new neck segment"""
-        if len(self.neck_positions) < 500:  # Increased max segments for more scaling
-            self.neck_positions.insert(-1, self.neck_positions[-2])
+    def add_neck_segment(self):
+        """Add a new neck segment when collecting spots"""
+        if len(self.neck_segments) < MAX_NECK_SEGMENTS:
+            # Insert new segment before the head
+            self.neck_segments.insert(-1, self.neck_segments[-2])
