@@ -1,9 +1,8 @@
-
-# config.py - Simplified configuration
+# config.py - Fixed configuration with single ground constant
 import pygame
 
 # Display Settings
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1280, 720
 FPS = 60
 BG_COLOR = (30, 30, 30)
 
@@ -12,7 +11,7 @@ TORSO_RADIUS = 35
 NECK_RADIUS = 20
 HEAD_RADIUS = 28
 SEGMENT_LENGTH = 18
-INITIAL_NECK_SEGMENTS = 100
+INITIAL_NECK_SEGMENTS = 10
 MAX_NECK_SEGMENTS = 500
 
 # Colors
@@ -27,7 +26,8 @@ SPOT_COLOR = (200, 50, 50)
 MIN_ZOOM = 0.0005
 
 # Environment Settings
-GROUND_Y = 100
+GROUND_SCREEN_Y = 600  # Ground always appears at screen Y = 600
+
 BUILDING_SPEED = 2
 SPOT_SPAWN_CHANCE = 0.01
 MIN_SPOT_DISTANCE = 100

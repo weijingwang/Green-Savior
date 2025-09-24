@@ -1,6 +1,6 @@
-# physics.py - Simplified physics system
+# physics.py - Fixed physics system with ground collision
 import math
-from config import SEGMENT_LENGTH, HEAD_RADIUS, GROUND_Y
+from config import SEGMENT_LENGTH, HEAD_RADIUS, NECK_RADIUS
 
 class NeckPhysics:
     """Handles neck segment physics with different complexity levels"""
@@ -8,16 +8,16 @@ class NeckPhysics:
     def __init__(self):
         self.stiffness = 0.15
     
-    def update_segments(self, segments, base_pos, target_pos, complexity='normal'):
-        """Update neck segments based on complexity level"""
+    def update_segments(self, segments, base_pos, target_pos, ground_y, complexity='normal'):
+        """Update neck segments based on complexity level with ground collision"""
         if complexity == 'simple':
-            return self._update_simple(segments, base_pos, target_pos)
+            return self._update_simple(segments, base_pos, target_pos, ground_y)
         elif complexity == 'medium':
-            return self._update_medium(segments, base_pos, target_pos)
+            return self._update_medium(segments, base_pos, target_pos, ground_y)
         else:
-            return self._update_normal(segments, base_pos, target_pos)
+            return self._update_normal(segments, base_pos, target_pos, ground_y)
     
-    def _update_simple(self, segments, base_pos, target_pos):
+    def _update_simple(self, segments, base_pos, target_pos, ground_y):
         """Ultra-simplified physics for extreme zoom levels"""
         new_segments = segments[:]
         new_segments[0] = base_pos
@@ -28,16 +28,19 @@ class NeckPhysics:
             progress = i / total
             x = base_pos[0] + (target_pos[0] - base_pos[0]) * progress
             y = base_pos[1] + (target_pos[1] - base_pos[1]) * progress
-            y = min(y, GROUND_Y)  # Ground collision
+            
+            # Apply ground collision
+            y = self._apply_ground_collision(x, y, ground_y, HEAD_RADIUS if i == total-1 else NECK_RADIUS)
             new_segments[i] = (x, y)
         
-        # Always update head
+        # Always update head with collision
         head_x, head_y = target_pos
-        new_segments[-1] = (head_x, min(head_y, GROUND_Y))
+        head_y = self._apply_ground_collision(head_x, head_y, ground_y, HEAD_RADIUS)
+        new_segments[-1] = (head_x, head_y)
         
         return new_segments
     
-    def _update_medium(self, segments, base_pos, target_pos):
+    def _update_medium(self, segments, base_pos, target_pos, ground_y):
         """Medium complexity physics - skip every other segment"""
         new_segments = segments[:]
         new_segments[0] = base_pos
@@ -49,26 +52,29 @@ class NeckPhysics:
             # Apply stiffness
             new_x = segments[i][0] * (1 - self.stiffness) + desired_pos[0] * self.stiffness
             new_y = segments[i][1] * (1 - self.stiffness) + desired_pos[1] * self.stiffness
-            new_y = min(new_y, GROUND_Y)
             
+            # Apply ground collision
+            radius = HEAD_RADIUS if i == len(segments)-1 else NECK_RADIUS
+            new_y = self._apply_ground_collision(new_x, new_y, ground_y, radius)
             new_segments[i] = (new_x, new_y)
             
-            # Interpolate skipped segment
+            # Interpolate skipped segment with collision check
             if i > 0:
                 prev_pos = new_segments[i-2]
                 curr_pos = new_segments[i]
-                new_segments[i-1] = (
-                    (prev_pos[0] + curr_pos[0]) / 2,
-                    (prev_pos[1] + curr_pos[1]) / 2
-                )
+                interp_x = (prev_pos[0] + curr_pos[0]) / 2
+                interp_y = (prev_pos[1] + curr_pos[1]) / 2
+                interp_y = self._apply_ground_collision(interp_x, interp_y, ground_y, NECK_RADIUS)
+                new_segments[i-1] = (interp_x, interp_y)
         
-        # Update head
+        # Update head with collision
         head_x, head_y = target_pos
-        new_segments[-1] = (head_x, min(head_y, GROUND_Y))
+        head_y = self._apply_ground_collision(head_x, head_y, ground_y, HEAD_RADIUS)
+        new_segments[-1] = (head_x, head_y)
         
         return new_segments
     
-    def _update_normal(self, segments, base_pos, target_pos):
+    def _update_normal(self, segments, base_pos, target_pos, ground_y):
         """Full complexity physics for normal zoom levels"""
         new_segments = segments[:]
         new_segments[0] = base_pos
@@ -83,11 +89,18 @@ class NeckPhysics:
             
             # Maintain segment length constraint
             constrained_pos = self._constrain_length(segments[i-1], (new_x, new_y), SEGMENT_LENGTH)
-            final_y = min(constrained_pos[1], GROUND_Y)
             
+            # Apply ground collision
+            radius = HEAD_RADIUS if i == len(segments)-1 else NECK_RADIUS
+            final_y = self._apply_ground_collision(constrained_pos[0], constrained_pos[1], ground_y, radius)
             new_segments[i] = (constrained_pos[0], final_y)
         
         return new_segments
+    
+    def _apply_ground_collision(self, x, y, ground_y, radius):
+        """Prevent segments from going below ground level"""
+        min_y = ground_y - radius
+        return min(y, min_y)
     
     def _get_direction(self, from_pos, to_pos):
         """Get normalized direction vector"""

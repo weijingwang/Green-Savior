@@ -1,4 +1,4 @@
-# environment.py - Simplified environment system
+# environment.py - Fixed environment system
 import random
 import math
 from config import *
@@ -6,11 +6,11 @@ from config import *
 class Building:
     """A building in the scrolling environment"""
     
-    def __init__(self, x_position):
+    def __init__(self, x_position, ground_world_y):
         self.x = x_position
         self.width = random.randint(int(WIDTH * 1.5), int(WIDTH * 3))
         self.height = random.randint(int(HEIGHT * 0.6), int(HEIGHT * 0.95))
-        self.y = GROUND_Y - self.height
+        self.y = ground_world_y - self.height  # Buildings sit on ground
         
         # Generate window pattern
         self.windows = self._generate_windows()
@@ -73,18 +73,22 @@ class Environment:
     def __init__(self):
         self.buildings = []
         self.spots = []
-        self._spawn_initial_buildings()
     
-    def _spawn_initial_buildings(self):
+    def _spawn_initial_buildings(self, ground_world_y):
         """Create initial set of buildings"""
+        self.buildings = []  # Clear existing buildings
         x_pos = 0
         while x_pos < WIDTH * 2:
-            building = Building(x_pos)
+            building = Building(x_pos, ground_world_y)
             self.buildings.append(building)
             x_pos += building.width + 200
     
     def update(self, camera):
         """Update all environment objects"""
+        # Spawn initial buildings if needed
+        if not self.buildings:
+            self._spawn_initial_buildings(camera.ground_world_y)
+        
         self._update_buildings(camera)
         self._update_spots(camera)
         self._spawn_new_content(camera)
@@ -115,16 +119,17 @@ class Environment:
             screen_width = WIDTH // camera.zoom
             if last_building.x + last_building.width < camera.x + screen_width:
                 new_x = last_building.x + last_building.width + 200
-                self.buildings.append(Building(new_x))
+                self.buildings.append(Building(new_x, camera.ground_world_y))
         
         # Spawn new spots randomly
         if random.random() < SPOT_SPAWN_CHANCE:
-            self._try_spawn_spot()
+            self._try_spawn_spot(camera)
     
-    def _try_spawn_spot(self):
-        """Try to spawn a new spot with distance constraints"""
-        new_x = 400 + random.randint(100, 400)
-        new_y = random.randint(-50, 50)
+    def _try_spawn_spot(self, camera):
+        """Try to spawn a new spot above ground level"""
+        new_x = camera.x + 400 + random.randint(100, 400)
+        # Spawn spots above ground level where neck can reach them
+        new_y = camera.ground_world_y - random.randint(50, 300)
         
         # Check minimum distance from existing spots
         for spot in self.spots:

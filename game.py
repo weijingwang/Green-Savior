@@ -1,4 +1,4 @@
-# game.py - Simplified main game class
+# game.py - Fixed main game class with ground collision support
 import pygame
 import sys
 from config import *
@@ -14,7 +14,7 @@ class Game:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Long Neck Zombie - Refactored")
+        pygame.display.set_caption("Plant neck game")
         self.clock = pygame.time.Clock()
         
         # Initialize game systems
@@ -24,10 +24,10 @@ class Game:
         self.renderer = Renderer(self.screen)
         self.performance_manager = PerformanceManager()
         
-        # Set initial zoom based on starting neck length
+        # Set initial zoom with simple 3x headroom
         initial_segments = self.character.get_neck_segment_count()
         self.camera.set_zoom_for_segment_count(initial_segments)
-        self.camera.zoom = self.camera.target_zoom  # Start at target zoom, no animation
+        self.camera.zoom = self.camera.target_zoom  # Start at target zoom
         
         self.running = True
     
@@ -53,13 +53,14 @@ class Game:
         mouse_x, mouse_y = pygame.mouse.get_pos()
         target_x, target_y = self.camera.screen_to_world(mouse_x, mouse_y)
         
-        # Update character
-        torso_pos = self.character.update(target_x, target_y, self.performance_manager)
+        # Update character with ground collision
+        torso_pos = self.character.update(target_x, target_y, self.performance_manager, 
+                                         self.camera.ground_world_y)
         
         # Update camera to follow character
         self.camera.follow_target(torso_pos[0], torso_pos[1])
         
-        # Update zoom based purely on segment count (no oscillation)
+        # Simple zoom: 1.5x current neck length for guaranteed headroom
         neck_count = self.character.get_neck_segment_count()
         self.camera.set_zoom_for_segment_count(neck_count)
         self.camera.update_zoom_smoothly()

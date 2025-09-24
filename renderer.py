@@ -1,4 +1,4 @@
-# renderer.py - Simplified rendering system
+# renderer.py - Fixed rendering system (removed redundancies)
 import pygame
 from config import *
 
@@ -15,7 +15,7 @@ class Renderer:
     
     def draw_ground(self, camera):
         """Draw the ground plane"""
-        ground_x, ground_y = camera.world_to_screen(-WIDTH * 2, GROUND_Y)
+        ground_x, ground_y = camera.world_to_screen(-WIDTH * 2, GROUND_SCREEN_Y)
         if 0 < ground_y < HEIGHT:
             pygame.draw.rect(self.screen, (20, 20, 50), 
                            (0, ground_y, WIDTH, HEIGHT - ground_y))

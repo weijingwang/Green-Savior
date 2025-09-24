@@ -1,7 +1,7 @@
 # main.py - Entry point
 #!/usr/bin/env python3
 """
-Long Neck Zombie Game - Refactored Version
+Plant grow neck game
 A physics-based game with simplified, readable code structure.
 """
 
