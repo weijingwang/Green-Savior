@@ -1,4 +1,4 @@
-# renderer.py - Updated rendering system with ellipse segments
+# renderer.py - Updated rendering system with proper ellipse segments
 import pygame
 import math
 from config import *
@@ -84,32 +84,37 @@ class Renderer:
                          (int(screen_x), int(screen_y)), radius)
     
     def _draw_neck_optimized(self, character, camera, performance_manager):
-        """Draw neck segments with LOD optimization and different segment types"""
+        """Draw neck segments with LOD optimization and proper ellipse handling"""
         lod = performance_manager.get_lod_settings(camera.zoom)
-        segment_info = character.get_segment_info_for_rendering()
-        segments_to_draw = self._get_segments_to_draw_with_types(segment_info, lod)
+        segments = character.neck_segments
+        segments_to_draw = self._get_segments_to_draw(segments, lod)
         
-        for i, (pos, seg_type, radius) in segments_to_draw:
-            screen_x, screen_y = camera.world_to_screen(pos[0], pos[1])
-            
-            if i == len(segment_info) - 1:
+        for i, segment in segments_to_draw:
+            if i == len(segments) - 1:
                 # Draw head
-                head_radius = max(1, int(HEAD_RADIUS * camera.zoom))
-                if self._is_circle_visible(screen_x, screen_y, head_radius):
-                    pygame.draw.circle(self.screen, HEAD_COLOR, 
-                                     (int(screen_x), int(screen_y)), head_radius)
+                self._draw_head(segment, camera)
             else:
                 # Draw neck segment based on type
-                if seg_type == 'ellipse':
-                    self._draw_ellipse_segment(screen_x, screen_y, camera, radius)
+                if segment.type == 'ellipse':
+                    self._draw_ellipse_segment(segment, camera)
                 else:
-                    self._draw_regular_segment(screen_x, screen_y, camera, radius, i, len(segment_info))
+                    self._draw_regular_segment(segment, camera, i, len(segments))
     
-    def _draw_regular_segment(self, screen_x, screen_y, camera, base_radius, segment_index, total_segments):
+    def _draw_head(self, segment, camera):
+        """Draw the head segment"""
+        screen_x, screen_y = camera.world_to_screen(segment.position[0], segment.position[1])
+        head_radius = max(1, int(HEAD_RADIUS * camera.zoom))
+        if self._is_circle_visible(screen_x, screen_y, head_radius):
+            pygame.draw.circle(self.screen, HEAD_COLOR, 
+                             (int(screen_x), int(screen_y)), head_radius)
+    
+    def _draw_regular_segment(self, segment, camera, segment_index, total_segments):
         """Draw a regular circular neck segment"""
+        screen_x, screen_y = camera.world_to_screen(segment.position[0], segment.position[1])
+        
         # Taper the neck (smaller towards the head)
         taper_factor = 1 - segment_index / max(1, total_segments) * 0.4
-        radius = max(1, int(base_radius * camera.zoom * taper_factor))
+        radius = max(1, int(NECK_RADIUS * camera.zoom * taper_factor))
         
         # Boost radius for extreme zooms
         if camera.zoom < 0.02:
@@ -119,78 +124,128 @@ class Renderer:
             pygame.draw.circle(self.screen, NECK_COLOR, 
                              (int(screen_x), int(screen_y)), radius)
     
-    def _draw_ellipse_segment(self, screen_x, screen_y, camera, base_radius):
-        """Draw an elliptical consolidated segment"""
-        # Make ellipse wider and taller than regular segments
-        width = max(2, int(base_radius * camera.zoom * 1.8))
-        height = max(2, int(base_radius * camera.zoom * 2.5))  # Taller to represent 5 segments
+    def _draw_ellipse_segment(self, segment, camera):
+        """Draw an elliptical consolidated segment that connects properly in the chain"""
+        # Get the connection point position (where this segment connects in the physics chain)
+        screen_x, screen_y = camera.world_to_screen(segment.position[0], segment.position[1])
+        
+        # Calculate dimensions based on actual chain length
+        base_radius = NECK_RADIUS * camera.zoom
+        
+        # Width increases with consolidation level for visual distinction
+        width_multiplier = 1.4 + 0.3 * segment.consolidation_level
+        width = max(6, int(base_radius * width_multiplier))
+        
+        # Height represents the actual chain length this segment covers
+        if hasattr(segment, 'chain_length'):
+            actual_length = segment.chain_length
+        else:
+            actual_length = segment.height_multiplier * SEGMENT_LENGTH
+            
+        # Make the ellipse tall enough to visually represent the space it fills
+        height = max(12, int(actual_length * camera.zoom * 0.8))  # 80% of actual length for visual clarity
         
         # Boost size for extreme zooms
         if camera.zoom < 0.02:
-            width = max(width, 12)
-            height = max(height, 20)
+            width = max(width, 10 + segment.consolidation_level * 3)
+            height = max(height, int(actual_length * 0.2))  # Ensure visibility at extreme zoom
         
-        if self._is_circle_visible(screen_x, screen_y, max(width, height)):
-            # Draw ellipse using pygame.draw.ellipse
+        # Don't draw if too small or off screen
+        if width < 2 or height < 2:
+            return
+            
+        margin = max(width, height) + 10
+        if (screen_x < -margin or screen_x > WIDTH + margin or 
+            screen_y < -margin or screen_y > HEIGHT + margin):
+            return
+        
+        # Position ellipse based on whether this is the bottom segment
+        if hasattr(segment, 'is_bottom_segment') and segment.is_bottom_segment:
+            # For bottom segments, the ellipse extends DOWNWARD from the physics connection point
+            # The physics connection point is at the top of the ellipse
             ellipse_rect = pygame.Rect(
                 int(screen_x - width/2), 
-                int(screen_y - height/2), 
+                int(screen_y),  # Top of ellipse at connection point
                 width, 
                 height
             )
-            # Use slightly different color for ellipses
-            ellipse_color = (
-                min(255, NECK_COLOR[0] + 20),
-                min(255, NECK_COLOR[1] + 10), 
-                NECK_COLOR[2]
+        else:
+            # For other segments, the ellipse extends DOWNWARD from the physics connection point
+            # The physics connection point is at the top of the ellipse
+            ellipse_rect = pygame.Rect(
+                int(screen_x - width/2), 
+                int(screen_y - base_radius * camera.zoom),  # Top of ellipse at connection point
+                width, 
+                height
             )
-            pygame.draw.ellipse(self.screen, ellipse_color, ellipse_rect)
+        
+        # Get color based on consolidation level
+        color = self._get_ellipse_color(segment.consolidation_level)
+        pygame.draw.ellipse(self.screen, color, ellipse_rect)
+
     
-    def _get_segments_to_draw_with_types(self, segment_info, lod):
-        """Get optimized list of segments to draw based on LOD, preserving types"""
+    def _get_ellipse_color(self, consolidation_level):
+        """Get color for ellipse based on consolidation level"""
+        return (
+            min(255, NECK_COLOR[0] + 30 + consolidation_level * 20),
+            min(255, NECK_COLOR[1] + 15 + consolidation_level * 10), 
+            max(0, NECK_COLOR[2] - consolidation_level * 15)
+        )
+    
+    def _get_segments_to_draw(self, segments, lod):
+        """Get optimized list of segments to draw based on LOD"""
         max_segments = lod['max_segments']
-        total_segments = len(segment_info)
+        total_segments = len(segments)
         
         if max_segments == -1 or total_segments <= max_segments:
-            return list(enumerate(segment_info))
+            return list(enumerate(segments))
         
-        # Sample segments evenly, but preserve ellipses
+        # Sample segments evenly
         segments_to_draw = []
         step = total_segments / max_segments
         
         for i in range(max_segments):
             segment_index = int(i * step)
-            if segment_index < len(segment_info):
-                segments_to_draw.append((segment_index, segment_info[segment_index]))
+            if segment_index < len(segments):
+                segments_to_draw.append((segment_index, segments[segment_index]))
         
         # Always include the head
         if segments_to_draw and segments_to_draw[-1][0] != total_segments - 1:
-            segments_to_draw.append((total_segments - 1, segment_info[-1]))
+            segments_to_draw.append((total_segments - 1, segments[-1]))
         
         return segments_to_draw
     
     def draw_ui(self, character, camera, performance_manager):
-        """Draw UI information"""
+        """Draw UI information with consolidation stats"""
         lod = performance_manager.get_lod_settings(camera.zoom)
         
-        # Count segment types
-        segment_info = character.get_segment_info_for_rendering()
-        regular_count = sum(1 for _, seg_type, _ in segment_info if seg_type == 'regular')
-        ellipse_count = sum(1 for _, seg_type, _ in segment_info if seg_type == 'ellipse')
+        # Get consolidation statistics
+        consolidation_stats = character.get_consolidation_stats()
+        display_segments = character.get_neck_segment_count()
+        actual_length = character.get_total_neck_length()
+        equivalent_segments = character.get_neck_segment_count_for_zoom()
         
         info_lines = [
             f"Zoom: {camera.zoom:.3f}x",
-            f"Total Segments: {len(segment_info)}",
-            f"Regular: {regular_count} | Ellipses: {ellipse_count}",
+            f"Display: {display_segments} segments",
+            f"Actual Length: {equivalent_segments} segments",
             f"LOD: {lod['name']}",
             f"Physics Skip: {lod['physics_skip']}",
-            f"Hold SPACE to grow neck"
+            ""
         ]
+        
+        # Add consolidation stats
+        for stat_name, value in consolidation_stats.items():
+            if stat_name != "Total Length":  # We show this above now
+                info_lines.append(f"{stat_name}: {value}")
+        
+        info_lines.extend(["", "Hold SPACE to grow neck"])
         
         y_pos = 10
         for line in info_lines:
-            text_surface = self.font.render(line, True, (255, 255, 255))
-            self.screen.blit(text_surface, (10, y_pos))
+            if line:  # Skip empty lines for spacing
+                text_surface = self.font.render(line, True, (255, 255, 255))
+                self.screen.blit(text_surface, (10, y_pos))
             y_pos += 25
     
     def _is_rect_visible(self, x, y, w, h):

@@ -1,4 +1,4 @@
-# game.py - Fixed main game class with ground collision support
+# game.py - Fixed main game class with proper zoom for consolidated segments
 import pygame
 import sys
 from config import *
@@ -24,9 +24,10 @@ class Game:
         self.renderer = Renderer(self.screen)
         self.performance_manager = PerformanceManager()
         
-        # Set initial zoom with simple 3x headroom
-        initial_segments = self.character.get_neck_segment_count()
-        self.camera.set_zoom_for_segment_count(initial_segments)
+        # Set initial zoom with simple 3x headroom based on actual length
+        initial_length = self.character.get_total_neck_length()
+        initial_segment_equiv = int(initial_length / SEGMENT_LENGTH)
+        self.camera.set_zoom_for_segment_count(initial_segment_equiv)
         self.camera.zoom = self.camera.target_zoom  # Start at target zoom
         
         self.running = True
@@ -65,9 +66,9 @@ class Game:
         # Update camera to follow character
         self.camera.follow_target(torso_pos[0], torso_pos[1])
         
-        # Simple zoom: 1.5x current neck length for guaranteed headroom
-        neck_count = self.character.get_neck_segment_count()
-        self.camera.set_zoom_for_segment_count(neck_count)
+        # Zoom based on actual neck length, not display segment count
+        equivalent_segment_count = self.character.get_neck_segment_count_for_zoom()
+        self.camera.set_zoom_for_segment_count(equivalent_segment_count)
         self.camera.update_zoom_smoothly()
         
         # Update environment

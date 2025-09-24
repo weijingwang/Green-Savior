@@ -1,99 +1,141 @@
-# physics.py - Fixed physics system with ground collision
-import math
-from config import SEGMENT_LENGTH, HEAD_RADIUS, NECK_RADIUS
-
-class NeckPhysics:
-    """Handles neck segment physics with different complexity levels"""
-    
-    def __init__(self):
-        self.stiffness = 0.15
-    
-    def update_segments(self, segments, base_pos, target_pos, ground_y, complexity='normal'):
+def update_segments(self, segments, base_pos, target_pos, ground_y, complexity='normal'):
         """Update neck segments based on complexity level with ground collision"""
         if complexity == 'simple':
             return self._update_simple(segments, base_pos, target_pos, ground_y)
         elif complexity == 'medium':
             return self._update_medium(segments, base_pos, target_pos, ground_y)
         else:
-            return self._update_normal(segments, base_pos, target_pos, ground_y)
+            return self._update_normal(segments, base_pos, target_pos, ground_y)# physics.py - Fixed physics system with ellipse chain length support
+import math
+from config import SEGMENT_LENGTH, HEAD_RADIUS, NECK_RADIUS
+
+class NeckPhysics:
+    """Handles neck segment physics with ellipse chain length awareness"""
     
-    def _update_simple(self, segments, base_pos, target_pos, ground_y):
-        """Ultra-simplified physics for extreme zoom levels"""
-        new_segments = segments[:]
-        new_segments[0] = base_pos
-        
-        # Only update every 10th segment
-        total = len(segments)
-        for i in range(10, total, 10):
-            progress = i / total
-            x = base_pos[0] + (target_pos[0] - base_pos[0]) * progress
-            y = base_pos[1] + (target_pos[1] - base_pos[1]) * progress
-            
-            # Apply ground collision
-            y = self._apply_ground_collision(x, y, ground_y, HEAD_RADIUS if i == total-1 else NECK_RADIUS)
-            new_segments[i] = (x, y)
-        
-        # Always update head with collision
-        head_x, head_y = target_pos
-        head_y = self._apply_ground_collision(head_x, head_y, ground_y, HEAD_RADIUS)
-        new_segments[-1] = (head_x, head_y)
-        
-        return new_segments
+    def __init__(self):
+        self.stiffness = 0.15
     
-    def _update_medium(self, segments, base_pos, target_pos, ground_y):
-        """Medium complexity physics - skip every other segment"""
-        new_segments = segments[:]
-        new_segments[0] = base_pos
-        
-        for i in range(2, len(segments), 2):
-            direction = self._get_direction(segments[i-2], target_pos)
-            desired_pos = self._move_towards(segments[i-2], direction, SEGMENT_LENGTH * 2)
-            
-            # Apply stiffness
-            new_x = segments[i][0] * (1 - self.stiffness) + desired_pos[0] * self.stiffness
-            new_y = segments[i][1] * (1 - self.stiffness) + desired_pos[1] * self.stiffness
-            
-            # Apply ground collision
-            radius = HEAD_RADIUS if i == len(segments)-1 else NECK_RADIUS
-            new_y = self._apply_ground_collision(new_x, new_y, ground_y, radius)
-            new_segments[i] = (new_x, new_y)
-            
-            # Interpolate skipped segment with collision check
-            if i > 0:
-                prev_pos = new_segments[i-2]
-                curr_pos = new_segments[i]
-                interp_x = (prev_pos[0] + curr_pos[0]) / 2
-                interp_y = (prev_pos[1] + curr_pos[1]) / 2
-                interp_y = self._apply_ground_collision(interp_x, interp_y, ground_y, NECK_RADIUS)
-                new_segments[i-1] = (interp_x, interp_y)
-        
-        # Update head with collision
-        head_x, head_y = target_pos
-        head_y = self._apply_ground_collision(head_x, head_y, ground_y, HEAD_RADIUS)
-        new_segments[-1] = (head_x, head_y)
-        
-        return new_segments
+    def update_segments_with_objects(self, segments, base_pos, target_pos, ground_y, complexity='normal'):
+        """Update neck segments working with segment objects directly"""
+        if complexity == 'simple':
+            return self._update_simple_objects(segments, base_pos, target_pos, ground_y)
+        elif complexity == 'medium':
+            return self._update_medium_objects(segments, base_pos, target_pos, ground_y)
+        else:
+            return self._update_normal_objects(segments, base_pos, target_pos, ground_y)
     
-    def _update_normal(self, segments, base_pos, target_pos, ground_y):
-        """Full complexity physics for normal zoom levels"""
-        new_segments = segments[:]
-        new_segments[0] = base_pos
+    def _update_normal_objects(self, segments, base_pos, target_pos, ground_y):
+        """Physics that respects ellipse chain lengths working with segment objects"""
+        # Create new segment list with updated positions
+        new_segments = [seg for seg in segments]  # Copy the list
+        
+        # Update first segment position
+        new_segments[0].position = base_pos
+        current_pos = base_pos
         
         for i in range(1, len(segments)):
-            direction = self._get_direction(segments[i-1], target_pos)
-            desired_pos = self._move_towards(segments[i-1], direction, SEGMENT_LENGTH)
+            current_segment = segments[i]
+            
+            # Calculate the chain length for this segment
+            if hasattr(current_segment, 'chain_length'):
+                chain_length = current_segment.chain_length
+            else:
+                chain_length = SEGMENT_LENGTH
+            
+            # Get direction toward target
+            direction = self._get_direction(current_pos, target_pos)
+            desired_pos = self._move_towards(current_pos, direction, chain_length)
             
             # Apply stiffness
-            new_x = segments[i][0] * (1 - self.stiffness) + desired_pos[0] * self.stiffness
-            new_y = segments[i][1] * (1 - self.stiffness) + desired_pos[1] * self.stiffness
+            old_pos = current_segment.position
+            new_x = old_pos[0] * (1 - self.stiffness) + desired_pos[0] * self.stiffness
+            new_y = old_pos[1] * (1 - self.stiffness) + desired_pos[1] * self.stiffness
             
-            # Maintain segment length constraint
-            constrained_pos = self._constrain_length(segments[i-1], (new_x, new_y), SEGMENT_LENGTH)
+            # Maintain proper chain length constraint
+            constrained_pos = self._constrain_length(current_pos, (new_x, new_y), chain_length)
             
             # Apply ground collision
             radius = HEAD_RADIUS if i == len(segments)-1 else NECK_RADIUS
             final_y = self._apply_ground_collision(constrained_pos[0], constrained_pos[1], ground_y, radius)
-            new_segments[i] = (constrained_pos[0], final_y)
+            
+            new_segments[i].position = (constrained_pos[0], final_y)
+            current_pos = new_segments[i].position
+        
+        return new_segments
+    
+    def _update_simple_objects(self, segments, base_pos, target_pos, ground_y):
+        """Simplified physics working with segment objects"""
+        new_segments = [seg for seg in segments]  # Copy the list
+        new_segments[0].position = base_pos
+        
+        # Calculate total chain length
+        total_length = 0
+        for seg in segments:
+            if hasattr(seg, 'chain_length'):
+                total_length += seg.chain_length
+            else:
+                total_length += SEGMENT_LENGTH
+        
+        # Update positions based on progress along total length
+        current_length = 0
+        
+        for i in range(1, len(segments)):
+            if hasattr(segments[i], 'chain_length'):
+                seg_length = segments[i].chain_length
+            else:
+                seg_length = SEGMENT_LENGTH
+                
+            current_length += seg_length
+            
+            # Update position based on progress along total length
+            if i % 10 == 0 or i == len(segments) - 1:  # Update every 10th or the head
+                progress = current_length / total_length if total_length > 0 else 0
+                x = base_pos[0] + (target_pos[0] - base_pos[0]) * progress
+                y = base_pos[1] + (target_pos[1] - base_pos[1]) * progress
+                
+                # Apply ground collision
+                radius = HEAD_RADIUS if i == len(segments)-1 else NECK_RADIUS
+                y = self._apply_ground_collision(x, y, ground_y, radius)
+                new_segments[i].position = (x, y)
+            else:
+                # Keep existing position for non-updated segments
+                pass  # Position stays the same
+        
+        return new_segments
+    
+    def _update_medium_objects(self, segments, base_pos, target_pos, ground_y):
+        """Medium complexity physics with segment objects"""
+        new_segments = [seg for seg in segments]  # Copy the list
+        new_segments[0].position = base_pos
+        current_pos = base_pos
+        
+        for i in range(1, len(segments)):
+            current_segment = segments[i]
+            
+            # Get chain length for this segment
+            if hasattr(current_segment, 'chain_length'):
+                chain_length = current_segment.chain_length
+            else:
+                chain_length = SEGMENT_LENGTH
+            
+            # Update this segment
+            direction = self._get_direction(current_pos, target_pos)
+            desired_pos = self._move_towards(current_pos, direction, chain_length)
+            
+            # Apply stiffness
+            old_pos = current_segment.position
+            new_x = old_pos[0] * (1 - self.stiffness) + desired_pos[0] * self.stiffness
+            new_y = old_pos[1] * (1 - self.stiffness) + desired_pos[1] * self.stiffness
+            
+            # Maintain chain length
+            constrained_pos = self._constrain_length(current_pos, (new_x, new_y), chain_length)
+            
+            # Apply ground collision
+            radius = HEAD_RADIUS if i == len(segments)-1 else NECK_RADIUS
+            final_y = self._apply_ground_collision(constrained_pos[0], constrained_pos[1], ground_y, radius)
+            new_segments[i].position = (constrained_pos[0], final_y)
+            
+            current_pos = new_segments[i].position
         
         return new_segments
     
