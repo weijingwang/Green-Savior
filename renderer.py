@@ -1,4 +1,4 @@
-# renderer.py - Updated rendering system with top-3 level filtering
+# renderer.py - Fixed rendering system with smooth scaling transitions
 import pygame
 import math
 from config import *
@@ -35,26 +35,38 @@ class Renderer:
         rect = pygame.Rect(screen_x, screen_y, screen_w, screen_h)
         pygame.draw.rect(self.screen, BUILDING_COLOR, rect)
         
-        # Draw windows
-        self._draw_building_windows(building, screen_x, screen_y, camera)
+        # Draw windows with improved scaling
+        self._draw_building_windows_improved(building, screen_x, screen_y, camera)
     
-    def _draw_building_windows(self, building, screen_x, screen_y, camera):
-        """Draw windows on a building"""
+    def _draw_building_windows_improved(self, building, screen_x, screen_y, camera):
+        """Draw windows on a building with smooth scaling for extreme zooms"""
         windows = building.windows
         window_w = windows['window_w'] * camera.zoom
         window_h = windows['window_h'] * camera.zoom
         
-        if window_w < 1 or window_h < 1:
-            return
+        # For very small zooms, use minimum window size instead of disappearing
+        min_window_size = 1
+        if window_w < min_window_size and window_h < min_window_size:
+            # At extreme zooms, draw simplified windows as single pixels
+            window_w = min_window_size
+            window_h = min_window_size
+            # Reduce window density at extreme zooms by only drawing every nth window
+            skip_factor = max(1, int(1 / camera.zoom / 50))
+        else:
+            skip_factor = 1
         
-        for r in range(windows['rows']):
-            for c in range(windows['cols']):
+        for r in range(0, windows['rows'], skip_factor):
+            for c in range(0, windows['cols'], skip_factor):
                 if windows['pattern'][r][c]:
                     wx = screen_x + 10 * camera.zoom + c * (window_w * 1.5)
                     wy = screen_y + 10 * camera.zoom + r * (window_h * 1.5)
                     
+                    # Ensure windows are at least 1 pixel
+                    final_w = max(1, int(window_w))
+                    final_h = max(1, int(window_h))
+                    
                     pygame.draw.rect(self.screen, WINDOW_COLOR, 
-                                   (wx, wy, window_w, window_h))
+                                   (int(wx), int(wy), final_w, final_h))
     
     def draw_spot(self, spot, camera):
         """Draw a collectible spot"""
@@ -134,7 +146,7 @@ class Renderer:
             else:
                 # Draw neck segment based on type
                 if segment.type == 'ellipse':
-                    self._draw_ellipse_segment(segment, camera)
+                    self._draw_ellipse_segment_smooth(segment, camera)
                 else:
                     self._draw_regular_segment(segment, camera, i, len(segments))
     
@@ -191,17 +203,13 @@ class Renderer:
         taper_factor = 1 - segment_index / max(1, total_segments) * 0.4
         radius = max(1, int(NECK_RADIUS * camera.zoom * taper_factor))
         
-        # Boost radius for extreme zooms
-        if camera.zoom < 0.02:
-            radius = max(radius, 8)
-        
         if self._is_circle_visible(screen_x, screen_y, radius):
             pygame.draw.circle(self.screen, NECK_COLOR, 
                              (int(screen_x), int(screen_y)), radius)
     
-    def _draw_ellipse_segment(self, segment, camera):
-        """Draw an elliptical consolidated segment that connects properly in the chain"""
-        # Get the connection point position (where this segment connects in the physics chain)
+    def _draw_ellipse_segment_smooth(self, segment, camera):
+        """Draw an elliptical consolidated segment with smooth scaling transitions"""
+        # Get the connection point position
         screen_x, screen_y = camera.world_to_screen(segment.position[0], segment.position[1])
         
         # Calculate dimensions based on actual chain length
@@ -209,7 +217,7 @@ class Renderer:
         
         # Width increases with consolidation level for visual distinction
         width_multiplier = 1.4 + 0.3 * segment.consolidation_level
-        width = max(6, int(base_radius * width_multiplier))
+        width = max(2, int(base_radius * width_multiplier))  # Minimum 2 pixels
         
         # Height represents the actual chain length this segment covers
         if hasattr(segment, 'chain_length'):
@@ -218,20 +226,25 @@ class Renderer:
             actual_length = segment.height_multiplier * SEGMENT_LENGTH
             
         # Make the ellipse tall enough to visually represent the space it fills
-        height = max(12, int(actual_length * camera.zoom * 0.8))  # 80% of actual length for visual clarity
+        height = max(3, int(actual_length * camera.zoom * 0.8))  # Minimum 3 pixels
         
-        # Boost size for extreme zooms - but with reasonable limits
-        if camera.zoom < 0.02:
-            width = max(width, 10 + segment.consolidation_level * 3)
-            # Cap the height boost to prevent massive ellipses
-            height = max(height, min(200, int(actual_length * 0.2)))  # Cap at 200 pixels max
+        # Smooth scaling for extreme zooms - gradual increase instead of sudden jump
+        if camera.zoom < 0.05:  # Start scaling earlier
+            # Calculate smooth scale factor based on zoom level
+            scale_range = 0.05 - 0.001  # Range from 0.05 to 0.001
+            current_range = 0.05 - camera.zoom
+            scale_factor = 1.0 + (current_range / scale_range) * 2.0  # Up to 3x scale at minimum zoom
+            
+            # Apply smooth scaling
+            width = max(width, int(width * scale_factor))
+            height = max(height, int(height * scale_factor * 0.5))  # Less aggressive height scaling
         
-        # Don't draw if too small or off screen - but be more permissive for extreme zooms
+        # Don't draw if too small or off screen
         if width < 1 or height < 1:
             return
             
-        # More generous margin calculation to prevent culling issues
-        margin = max(width, height) * 2 + 50
+        # Generous margin calculation to prevent culling issues
+        margin = max(width, height) + 20
         if (screen_x < -margin or screen_x > WIDTH + margin or 
             screen_y < -margin or screen_y > HEIGHT + margin):
             return
@@ -254,22 +267,14 @@ class Renderer:
                 height
             )
         
-        # Ensure rectangle is valid (positive dimensions)
+        # Ensure rectangle is valid
         if ellipse_rect.width <= 0 or ellipse_rect.height <= 0:
             return
             
         # Get color based on consolidation level
         color = self._get_ellipse_color(segment.consolidation_level)
         
-        # Add debug info for troubleshooting at extreme zooms
-        if camera.zoom < 0.02:
-            # Draw a small circle at the connection point for debugging
-            debug_radius = max(2, int(5 * camera.zoom))
-            pygame.draw.circle(self.screen, (255, 0, 0), 
-                             (int(screen_x), int(screen_y)), debug_radius)
-        
         pygame.draw.ellipse(self.screen, color, ellipse_rect)
-
     
     def _get_ellipse_color(self, consolidation_level):
         """Get color for ellipse based on consolidation level"""
