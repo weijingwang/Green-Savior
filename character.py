@@ -251,26 +251,170 @@ class Character:
             self._consolidate_structured()
     
     def _consolidate_structured(self):
-        """Structured consolidation maintaining 5 regular segments at top"""
-        # Always keep 5 regular segments at the top (plus head)
-        # So we need at least 11 segments before first consolidation (5 + 5 to consolidate + 1 head)
+        """Structured consolidation maintaining the rolling buffer pattern"""
+        # We need at least 11 segments to start consolidation: 5 to consolidate + 5 buffer + 1 head
         if len(self.neck_segments) < 11:
             return
-            
-        # Find the consolidation boundary - always keep last 6 segments (5 regular + head)
-        consolidation_end = len(self.neck_segments) - 6
         
-        # Get segments available for consolidation (excluding the top 5 + head)
-        consolidatable_segments = self.neck_segments[:consolidation_end]
+        # Always keep the head (last segment) from consolidation
+        head = self.neck_segments[-1]
+        body_segments = self.neck_segments[:-1]
         
-        if len(consolidatable_segments) < 5:
-            return
+        # Count segments by level
+        level_counts = {}
+        for seg in body_segments:
+            level = seg.consolidation_level if seg.type == 'ellipse' else 0
+            level_counts[level] = level_counts.get(level, 0) + 1
+        
+        # Find the smallest and second-smallest levels present
+        sorted_levels = sorted(level_counts.keys())
+        if len(sorted_levels) < 2:
+            # Only one level present - we need to consolidate some to create the second level
+            self._perform_rolling_buffer_consolidation(body_segments, head)
+        else:
+            smallest_level = sorted_levels[0]
+            second_smallest_level = sorted_levels[1]
             
-        # Consolidate from bottom up in structured pattern
-        self._perform_structured_consolidation(consolidatable_segments, consolidation_end)
-    
-    def _perform_structured_consolidation(self, segments, end_index):
-        """Perform consolidation following the structured pattern with proper base positioning"""
+            # Check if we need consolidation
+            # Rule: Keep exactly 5 of second-smallest, consolidate when we have 10+ of any level
+            needs_consolidation = False
+            for level, count in level_counts.items():
+                if count >= 10:  # Time to consolidate 5 of this level
+                    needs_consolidation = True
+                    break
+            
+            if needs_consolidation:
+                self._perform_rolling_buffer_consolidation(body_segments, head)
+
+    def _perform_rolling_buffer_consolidation(self, body_segments, head):
+        """Perform consolidation following the rolling buffer pattern"""
+        # Count segments by level and organize them
+        level_groups = {}
+        for i, seg in enumerate(body_segments):
+            level = seg.consolidation_level if seg.type == 'ellipse' else 0
+            if level not in level_groups:
+                level_groups[level] = []
+            level_groups[level].append((i, seg))
+        
+        # Process consolidation starting from the lowest level that has 10+ segments
+        sorted_levels = sorted(level_groups.keys())
+        new_segments = body_segments.copy()
+        consolidations_made = []  # Track what we've consolidated
+        
+        for level in sorted_levels:
+            segments_at_level = level_groups[level]
+            
+            if len(segments_at_level) >= 10:
+                # We have 10+ segments at this level - consolidate 5 into next level
+                # Take the first 5 segments of this level (bottom-most in the neck)
+                to_consolidate = segments_at_level[:5]
+                
+                # Check if the first segment is at index 0 (bottom of neck)
+                is_bottom_segment = (to_consolidate[0][0] == 0)
+                
+                # Create consolidated segment
+                segment_objects = [seg for _, seg in to_consolidate]
+                consolidated = self._create_consolidated_segment_with_chain(
+                    segment_objects, level + 1, is_bottom_segment
+                )
+                
+                # Mark these indices for removal and add consolidated segment
+                indices_to_remove = [idx for idx, _ in to_consolidate]
+                consolidations_made.append((indices_to_remove, consolidated, to_consolidate[0][0]))
+        
+        # Apply consolidations (work backwards to preserve indices)
+        consolidations_made.sort(key=lambda x: x[2])  # Sort by first index
+        
+        for indices_to_remove, consolidated_seg, insert_pos in reversed(consolidations_made):
+            # Remove the original segments (in reverse order to preserve indices)
+            for idx in sorted(indices_to_remove, reverse=True):
+                if idx < len(new_segments):
+                    new_segments.pop(idx)
+            
+            # Insert the consolidated segment at the position of the first removed segment
+            adjusted_insert_pos = insert_pos
+            # Adjust position based on previous removals
+            for prev_indices, _, prev_insert in consolidations_made:
+                if prev_insert < insert_pos:
+                    adjusted_insert_pos -= len(prev_indices) - 1
+            
+            new_segments.insert(adjusted_insert_pos, consolidated_seg)
+        
+        # Rebuild the full neck with head
+        self.neck_segments = new_segments + [head]
+
+    def _create_consolidated_segment_with_chain(self, segment_group, new_level, is_bottom_segment):
+        """Create a consolidated segment that maintains proper chain positioning"""
+        first_segment = segment_group[0]
+        
+        # Calculate total height multiplier (sum of all segments being consolidated)
+        total_height_multiplier = sum(seg.height_multiplier for seg in segment_group)
+        ellipse_height = total_height_multiplier * SEGMENT_LENGTH
+        
+        # Position the consolidated segment
+        if is_bottom_segment:
+            # For bottom segments, ensure proper connection to torso
+            torso_top_y = self.y - TORSO_RADIUS
+            physics_position = (first_segment.position[0], torso_top_y - ellipse_height)
+        else:
+            # Use the first segment's position
+            physics_position = first_segment.position
+        
+        # Create new consolidated segment
+        consolidated = NeckSegment(
+            physics_position,
+            'ellipse',
+            total_height_multiplier,
+            new_level,
+            is_bottom_segment
+        )
+        
+        # Store the chain length for physics
+        consolidated.chain_length = ellipse_height
+        
+        return consolidated
+
+    def get_consolidation_pattern_info(self):
+        """Get detailed info about current consolidation pattern for debugging"""
+        # Count by level
+        level_counts = {}
+        for seg in self.neck_segments[:-1]:  # Exclude head
+            level = seg.consolidation_level if seg.type == 'ellipse' else 0
+            level_counts[level] = level_counts.get(level, 0) + 1
+        
+        # Create pattern string
+        pattern_parts = []
+        for level in sorted(level_counts.keys()):
+            count = level_counts[level]
+            pattern_parts.append(f"{level}" * count)
+        
+        pattern = "".join(pattern_parts)
+        
+        return {
+            'pattern': pattern,
+            'level_counts': level_counts,
+            'total_segments': len(self.neck_segments) - 1,  # Exclude head
+            'follows_buffer_rule': self._check_buffer_rule(level_counts)
+        }
+
+    def _check_buffer_rule(self, level_counts):
+        """Check if current pattern follows the rolling buffer rule"""
+        if len(level_counts) < 2:
+            return True  # Not enough levels to violate rule
+        
+        sorted_levels = sorted(level_counts.keys())
+        second_smallest = sorted_levels[1]
+        second_smallest_count = level_counts[second_smallest]
+        
+        # Rule: Should have exactly 5 of second-smallest level (buffer)
+        # And no level should have 10+ segments
+        buffer_rule_ok = second_smallest_count == 5
+        no_overflow = all(count < 10 for count in level_counts.values())
+        
+        return buffer_rule_ok and no_overflow
+
+    def _perform_structured_consolidation_with_buffer(self, segments, end_index, buffer_level):
+        """Perform consolidation but protect segments at buffer_level from being consolidated"""
         # Work from bottom (index 0) upward
         i = 0
         new_segments = []
@@ -279,7 +423,7 @@ class Character:
             current_seg = segments[i]
             
             if current_seg.type == 'regular':
-                # Try to consolidate 5 regular segments
+                # Try to consolidate 5 regular segments into level 1
                 if i + 4 < len(segments):
                     # Check if we have 5 consecutive regular segments
                     regular_group = segments[i:i+5]
@@ -298,72 +442,42 @@ class Character:
                 i += 1
                 
             elif current_seg.type == 'ellipse':
-                # Try to consolidate ellipses of the same level
                 level = current_seg.consolidation_level
                 
-                # Look for 5 ellipses of the same level to consolidate
-                ellipse_group = []
-                j = i
-                while (j < len(segments) and 
-                       len(ellipse_group) < 5 and
-                       segments[j].type == 'ellipse' and
-                       segments[j].consolidation_level == level):
-                    ellipse_group.append(segments[j])
-                    j += 1
-                
-                if len(ellipse_group) == 5:
-                    # Mark if this is the bottom-most segment
-                    is_bottom = (i == 0)
-                    
-                    # Consolidate 5 ellipses into next level
-                    consolidated = self._create_consolidated_segment_with_chain(ellipse_group, level + 1, is_bottom)
-                    new_segments.append(consolidated)
-                    i = j
-                else:
-                    # Can't consolidate, keep as is
+                # Don't consolidate segments at the buffer level - they stay as buffer
+                if level == buffer_level:
                     new_segments.append(current_seg)
                     i += 1
+                else:
+                    # Try to consolidate ellipses of the same level (not buffer level)
+                    # Look for 5 ellipses of the same level to consolidate
+                    ellipse_group = []
+                    j = i
+                    while (j < len(segments) and 
+                           len(ellipse_group) < 5 and
+                           segments[j].type == 'ellipse' and
+                           segments[j].consolidation_level == level):
+                        ellipse_group.append(segments[j])
+                        j += 1
+                    
+                    if len(ellipse_group) == 5:
+                        # Mark if this is the bottom-most segment
+                        is_bottom = (i == 0)
+                        
+                        # Consolidate 5 ellipses into next level
+                        consolidated = self._create_consolidated_segment_with_chain(ellipse_group, level + 1, is_bottom)
+                        new_segments.append(consolidated)
+                        i = j
+                    else:
+                        # Can't consolidate, keep as is
+                        new_segments.append(current_seg)
+                        i += 1
             else:
                 new_segments.append(current_seg)
                 i += 1
         
         # Replace the consolidatable part of neck_segments
         self.neck_segments = new_segments + self.neck_segments[end_index:]
-    
-    def _create_consolidated_segment_with_chain(self, segment_group, new_level, is_bottom_segment):
-        """Create a consolidated segment that maintains proper chain positioning above the base"""
-        first_segment = segment_group[0]
-        
-        # Calculate total height multiplier (sum of all segments being consolidated)
-        total_height_multiplier = sum(seg.height_multiplier for seg in segment_group)
-        ellipse_height = total_height_multiplier * SEGMENT_LENGTH
-        
-        # For bottom segments, position physics point so ellipse bottom sits on torso top
-        if is_bottom_segment:
-            # Torso top position
-            torso_top_y = self.y - TORSO_RADIUS
-            # Physics point (top of ellipse) should be positioned so that when the ellipse
-            # extends downward by ellipse_height, its bottom reaches torso_top_y
-            # So: physics_position + ellipse_height = torso_top_y
-            # Therefore: physics_position = torso_top_y - ellipse_height
-            physics_position = (first_segment.position[0], torso_top_y - ellipse_height)
-        else:
-            # For non-bottom segments, use the first segment's position
-            physics_position = first_segment.position
-        
-        # Create new consolidated segment at the proper position
-        consolidated = NeckSegment(
-            physics_position,
-            'ellipse',
-            total_height_multiplier,
-            new_level,
-            is_bottom_segment
-        )
-        
-        # Store the chain length for physics
-        consolidated.chain_length = ellipse_height
-        
-        return consolidated
     
     def get_segment_info_for_rendering(self):
         """Get segment information for the renderer"""
