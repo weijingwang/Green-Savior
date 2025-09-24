@@ -1,5 +1,6 @@
-# renderer.py - Fixed rendering system (removed redundancies)
+# renderer.py - Updated rendering system with ellipse segments
 import pygame
+import math
 from config import *
 
 class Renderer:
@@ -71,7 +72,7 @@ class Renderer:
         # Draw torso
         self._draw_torso(torso_pos, camera)
         
-        # Draw neck with LOD optimization
+        # Draw neck with LOD optimization and segment types
         self._draw_neck_optimized(character, camera, performance_manager)
     
     def _draw_torso(self, torso_pos, camera):
@@ -83,51 +84,88 @@ class Renderer:
                          (int(screen_x), int(screen_y)), radius)
     
     def _draw_neck_optimized(self, character, camera, performance_manager):
-        """Draw neck segments with LOD optimization"""
+        """Draw neck segments with LOD optimization and different segment types"""
         lod = performance_manager.get_lod_settings(camera.zoom)
-        segments_to_draw = self._get_segments_to_draw(character.neck_segments, lod)
+        segment_info = character.get_segment_info_for_rendering()
+        segments_to_draw = self._get_segments_to_draw_with_types(segment_info, lod)
         
-        for i, pos in segments_to_draw:
+        for i, (pos, seg_type, radius) in segments_to_draw:
             screen_x, screen_y = camera.world_to_screen(pos[0], pos[1])
             
-            if i == len(character.neck_segments) - 1:
+            if i == len(segment_info) - 1:
                 # Draw head
-                radius = max(1, int(HEAD_RADIUS * camera.zoom))
-                if self._is_circle_visible(screen_x, screen_y, radius):
+                head_radius = max(1, int(HEAD_RADIUS * camera.zoom))
+                if self._is_circle_visible(screen_x, screen_y, head_radius):
                     pygame.draw.circle(self.screen, HEAD_COLOR, 
-                                     (int(screen_x), int(screen_y)), radius)
+                                     (int(screen_x), int(screen_y)), head_radius)
             else:
-                # Draw neck segment
-                base_radius = NECK_RADIUS * (1 - i / max(1, len(character.neck_segments)) * 0.4)
-                radius = max(1, int(base_radius * camera.zoom))
-                
-                # Boost radius for extreme zooms
-                if camera.zoom < 0.02:
-                    radius = max(radius, 8)
-                
-                if self._is_circle_visible(screen_x, screen_y, radius):
-                    pygame.draw.circle(self.screen, NECK_COLOR, 
-                                     (int(screen_x), int(screen_y)), radius)
+                # Draw neck segment based on type
+                if seg_type == 'ellipse':
+                    self._draw_ellipse_segment(screen_x, screen_y, camera, radius)
+                else:
+                    self._draw_regular_segment(screen_x, screen_y, camera, radius, i, len(segment_info))
     
-    def _get_segments_to_draw(self, all_segments, lod):
-        """Get optimized list of segments to draw based on LOD"""
+    def _draw_regular_segment(self, screen_x, screen_y, camera, base_radius, segment_index, total_segments):
+        """Draw a regular circular neck segment"""
+        # Taper the neck (smaller towards the head)
+        taper_factor = 1 - segment_index / max(1, total_segments) * 0.4
+        radius = max(1, int(base_radius * camera.zoom * taper_factor))
+        
+        # Boost radius for extreme zooms
+        if camera.zoom < 0.02:
+            radius = max(radius, 8)
+        
+        if self._is_circle_visible(screen_x, screen_y, radius):
+            pygame.draw.circle(self.screen, NECK_COLOR, 
+                             (int(screen_x), int(screen_y)), radius)
+    
+    def _draw_ellipse_segment(self, screen_x, screen_y, camera, base_radius):
+        """Draw an elliptical consolidated segment"""
+        # Make ellipse wider and taller than regular segments
+        width = max(2, int(base_radius * camera.zoom * 1.8))
+        height = max(2, int(base_radius * camera.zoom * 2.5))  # Taller to represent 5 segments
+        
+        # Boost size for extreme zooms
+        if camera.zoom < 0.02:
+            width = max(width, 12)
+            height = max(height, 20)
+        
+        if self._is_circle_visible(screen_x, screen_y, max(width, height)):
+            # Draw ellipse using pygame.draw.ellipse
+            ellipse_rect = pygame.Rect(
+                int(screen_x - width/2), 
+                int(screen_y - height/2), 
+                width, 
+                height
+            )
+            # Use slightly different color for ellipses
+            ellipse_color = (
+                min(255, NECK_COLOR[0] + 20),
+                min(255, NECK_COLOR[1] + 10), 
+                NECK_COLOR[2]
+            )
+            pygame.draw.ellipse(self.screen, ellipse_color, ellipse_rect)
+    
+    def _get_segments_to_draw_with_types(self, segment_info, lod):
+        """Get optimized list of segments to draw based on LOD, preserving types"""
         max_segments = lod['max_segments']
-        total_segments = len(all_segments)
+        total_segments = len(segment_info)
         
         if max_segments == -1 or total_segments <= max_segments:
-            return list(enumerate(all_segments))
+            return list(enumerate(segment_info))
         
-        # Sample segments evenly
+        # Sample segments evenly, but preserve ellipses
         segments_to_draw = []
         step = total_segments / max_segments
         
         for i in range(max_segments):
             segment_index = int(i * step)
-            segments_to_draw.append((segment_index, all_segments[segment_index]))
+            if segment_index < len(segment_info):
+                segments_to_draw.append((segment_index, segment_info[segment_index]))
         
         # Always include the head
-        if segments_to_draw[-1][0] != total_segments - 1:
-            segments_to_draw.append((total_segments - 1, all_segments[-1]))
+        if segments_to_draw and segments_to_draw[-1][0] != total_segments - 1:
+            segments_to_draw.append((total_segments - 1, segment_info[-1]))
         
         return segments_to_draw
     
@@ -135,11 +173,18 @@ class Renderer:
         """Draw UI information"""
         lod = performance_manager.get_lod_settings(camera.zoom)
         
+        # Count segment types
+        segment_info = character.get_segment_info_for_rendering()
+        regular_count = sum(1 for _, seg_type, _ in segment_info if seg_type == 'regular')
+        ellipse_count = sum(1 for _, seg_type, _ in segment_info if seg_type == 'ellipse')
+        
         info_lines = [
             f"Zoom: {camera.zoom:.3f}x",
-            f"Segments: {len(character.neck_segments)}",
+            f"Total Segments: {len(segment_info)}",
+            f"Regular: {regular_count} | Ellipses: {ellipse_count}",
             f"LOD: {lod['name']}",
-            f"Physics Skip: {lod['physics_skip']}"
+            f"Physics Skip: {lod['physics_skip']}",
+            f"Hold SPACE to grow neck"
         ]
         
         y_pos = 10

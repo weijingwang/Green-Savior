@@ -46,6 +46,11 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+        
+        # Handle space bar for neck growth
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE]:
+            self.character.add_neck_segment()
     
     def _update(self):
         """Update all game systems"""
@@ -70,7 +75,8 @@ class Game:
         
         # Handle spot collections
         if self.character.neck_segments:
-            head_pos = self.character.neck_segments[-1]
+            head_segment = self.character.neck_segments[-1]
+            head_pos = head_segment.position
             self.environment.check_spot_collections(
                 head_pos[0], head_pos[1], self.character
             )
