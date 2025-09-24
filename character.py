@@ -1,15 +1,16 @@
-# character.py - Streamlined character system with optimized consolidation
+# character.py - Enhanced character system with 2-point segments for proper connectivity
 import math
 from config import *
 from physics import NeckPhysics
 
 class NeckSegment:
-    """Simplified neck segment with consolidated properties"""
+    """Enhanced neck segment with start/end points for proper connectivity"""
     
-    def __init__(self, position, height=1, level=0, is_bottom=False):
-        self.position = position  # (x, y)
-        self.height = height  # How many base segments this represents
-        self.level = level  # Consolidation level (0=regular, 1+=ellipse)
+    def __init__(self, start_pos, end_pos, height=1, level=0, is_bottom=False):
+        self.start_pos = start_pos  # (x, y) - connection point to previous segment
+        self.end_pos = end_pos      # (x, y) - connection point to next segment
+        self.height = height        # How many base segments this represents
+        self.level = level          # Consolidation level (0=regular, 1+=ellipse)
         self.is_bottom = is_bottom
         self.chain_length = height * SEGMENT_LENGTH
         
@@ -19,8 +20,38 @@ class NeckSegment:
         self.consolidation_level = level  # Alias for compatibility
     
     @property
+    def position(self):
+        """Center position for backward compatibility"""
+        return (
+            (self.start_pos[0] + self.end_pos[0]) / 2,
+            (self.start_pos[1] + self.end_pos[1]) / 2
+        )
+    
+    @position.setter
+    def position(self, pos):
+        """Set position by moving both endpoints to maintain length/angle"""
+        current_center = self.position
+        dx = pos[0] - current_center[0]
+        dy = pos[1] - current_center[1]
+        
+        self.start_pos = (self.start_pos[0] + dx, self.start_pos[1] + dy)
+        self.end_pos = (self.end_pos[0] + dx, self.end_pos[1] + dy)
+    
+    @property
     def is_ellipse(self):
         return self.level > 0
+    
+    def get_length(self):
+        """Get actual distance between start and end points"""
+        dx = self.end_pos[0] - self.start_pos[0]
+        dy = self.end_pos[1] - self.start_pos[1]
+        return math.hypot(dx, dy)
+    
+    def get_angle(self):
+        """Get rotation angle in radians"""
+        dx = self.end_pos[0] - self.start_pos[0]
+        dy = self.end_pos[1] - self.start_pos[1]
+        return math.atan2(dy, dx)
     
     def get_radius(self):
         if self.is_ellipse:
@@ -31,9 +62,29 @@ class NeckSegment:
         if self.is_ellipse:
             return 1.4 + 0.2 * self.level
         return 1.0
+    
+    def set_from_start_and_direction(self, start_pos, direction, length):
+        """Set segment from start point, direction vector, and length"""
+        self.start_pos = start_pos
+        self.end_pos = (
+            start_pos[0] + direction[0] * length,
+            start_pos[1] + direction[1] * length
+        )
+    
+    def connect_to_previous(self, prev_segment_end):
+        """Connect this segment's start to previous segment's end"""
+        # Maintain current length and angle, just move start point
+        current_length = self.get_length()
+        current_angle = self.get_angle()
+        
+        self.start_pos = prev_segment_end
+        self.end_pos = (
+            prev_segment_end[0] + math.cos(current_angle) * current_length,
+            prev_segment_end[1] + math.sin(current_angle) * current_length
+        )
 
 class Character:
-    """Optimized character with simplified physics and consolidation"""
+    """Enhanced character with 2-point segment physics and rendering"""
     
     def __init__(self):
         self.x = 0
@@ -47,19 +98,23 @@ class Character:
         self._cache_timer = 0
     
     def _create_initial_segments(self):
-        """Create initial neck segments"""
+        """Create initial neck segments with proper 2-point connectivity"""
         segments = []
-        base_y = self.y - TORSO_RADIUS
+        torso_top = (self.x, self.y - TORSO_RADIUS)
+        current_end = torso_top
         
         for i in range(INITIAL_NECK_SEGMENTS):
-            y = base_y - (i + 1) * SEGMENT_LENGTH
-            segment = NeckSegment((self.x, y), 1, 0, i == 0)
+            start_pos = current_end
+            end_pos = (self.x, current_end[1] - SEGMENT_LENGTH)
+            
+            segment = NeckSegment(start_pos, end_pos, 1, 0, i == 0)
             segments.append(segment)
+            current_end = end_pos
         
         return segments
     
     def update(self, target_x, target_y, performance_manager, ground_world_y):
-        """Optimized update with cached calculations"""
+        """Enhanced update with 2-point physics"""
         self.walk_timer += 0.05
         self._cache_timer += 1
         
@@ -71,65 +126,69 @@ class Character:
         if self._cache_timer % 2 == 0 or self._cached_torso_pos is None:
             self._cached_torso_pos = self._get_torso_position()
         
-        # Simplified physics update
+        # Enhanced physics update with 2-point system
         if performance_manager.should_update_physics(1.0):
-            self._update_neck_physics(target_x, target_y, ground_world_y)
+            self._update_neck_physics_2point(target_x, target_y, ground_world_y)
         
         return self._cached_torso_pos
     
-    def _update_neck_physics(self, target_x, target_y, ground_world_y):
-        """Streamlined physics calculation with proper bottom segment handling"""
+    def _update_neck_physics_2point(self, target_x, target_y, ground_world_y):
+        """Enhanced physics with proper 2-point connectivity"""
         if not self.neck_segments:
             return
         
-        # Handle bottom segment as fixed extension of torso (no physics)
+        # Start from torso top
         torso_top = (self._cached_torso_pos[0], self._cached_torso_pos[1] - TORSO_RADIUS)
         
-        if self.neck_segments[0].is_bottom and self.neck_segments[0].is_ellipse:
-            # Bottom segment is a consolidated ellipse - position it as fixed extension
-            bottom_segment = self.neck_segments[0]
-            bottom_end_y = torso_top[1] - bottom_segment.chain_length
-            bottom_segment.position = (torso_top[0], bottom_end_y)
-            
-            # Physics chain starts from the END of the bottom segment
-            current_pos = (torso_top[0], bottom_end_y)
-            physics_start_index = 1
-        else:
-            # No consolidated bottom segment, physics starts from torso
-            current_pos = torso_top
-            physics_start_index = 0
+        # Update each segment maintaining connectivity
+        current_start = torso_top
         
-        # Apply physics to remaining segments
-        for i in range(physics_start_index, len(self.neck_segments)):
-            segment = self.neck_segments[i]
+        for i, segment in enumerate(self.neck_segments):
+            is_head = (i == len(self.neck_segments) - 1)
             
-            if i == physics_start_index and physics_start_index == 0:
-                # First segment when no bottom consolidation - just position it
-                segment.position = current_pos
-                current_pos = (current_pos[0], current_pos[1] - segment.chain_length)
-                continue
+            # Calculate desired direction toward target
+            if is_head:
+                # Head segment points directly toward target
+                target_pos = (target_x, target_y)
+            else:
+                # Body segments use a mix of target direction and chain following
+                target_pos = (target_x, target_y)
             
-            # Calculate desired position toward target
-            direction = self._get_direction_to_target(current_pos, (target_x, target_y))
-            desired_pos = (
-                current_pos[0] + direction[0] * segment.chain_length,
-                current_pos[1] + direction[1] * segment.chain_length
+            direction = self._get_direction_to_target(current_start, target_pos)
+            
+            # Calculate desired end position
+            desired_end = (
+                current_start[0] + direction[0] * segment.chain_length,
+                current_start[1] + direction[1] * segment.chain_length
             )
             
-            # Apply stiffness and constraint
-            old_pos = segment.position
-            stiffness = 0.15
-            new_pos = (
-                old_pos[0] * (1 - stiffness) + desired_pos[0] * stiffness,
-                old_pos[1] * (1 - stiffness) + desired_pos[1] * stiffness
+        # Apply physics with stiffness based on segment weight (larger segments move slower)
+            segment_weight = segment.height
+            weight_factor = 1.0 / (1.0 + segment_weight * 0.05)  # Heavier segments have more inertia
+            stiffness = 0.15 * weight_factor
+            
+            old_end = segment.end_pos
+            new_end = (
+                old_end[0] * (1 - stiffness) + desired_end[0] * stiffness,
+                old_end[1] * (1 - stiffness) + desired_end[1] * stiffness
             )
             
-            # Maintain chain length and apply ground collision
-            constrained_pos = self._constrain_to_chain_length(current_pos, new_pos, segment.chain_length)
-            final_pos = self._apply_ground_collision(constrained_pos, ground_world_y, segment.get_radius())
+            # Maintain proper chain length
+            actual_direction = self._get_direction_to_target(current_start, new_end)
+            constrained_end = (
+                current_start[0] + actual_direction[0] * segment.chain_length,
+                current_start[1] + actual_direction[1] * segment.chain_length
+            )
             
-            segment.position = final_pos
-            current_pos = final_pos
+            # Apply ground collision to end point
+            final_end = self._apply_ground_collision(constrained_end, ground_world_y, segment.get_radius())
+            
+            # Update segment with connected points
+            segment.start_pos = current_start
+            segment.end_pos = final_end
+            
+            # Next segment starts where this one ends
+            current_start = final_end
     
     def _get_direction_to_target(self, from_pos, target_pos):
         """Get normalized direction vector"""
@@ -141,14 +200,6 @@ class Character:
             return (0, -1)  # Default upward direction
         
         return (dx / distance, dy / distance)
-    
-    def _constrain_to_chain_length(self, anchor_pos, target_pos, chain_length):
-        """Constrain position to exact chain length"""
-        direction = self._get_direction_to_target(anchor_pos, target_pos)
-        return (
-            anchor_pos[0] + direction[0] * chain_length,
-            anchor_pos[1] + direction[1] * chain_length
-        )
     
     def _apply_ground_collision(self, pos, ground_y, radius):
         """Simple ground collision"""
@@ -169,29 +220,48 @@ class Character:
         return (torso_x, torso_y)
     
     def add_neck_segment(self):
-        """Add segment and consolidate when needed"""
+        """Add segment with proper 2-point connectivity"""
         if len(self.neck_segments) >= MAX_NECK_SEGMENTS or self.growth_cooldown > 0:
             return
         
         self.growth_cooldown = 3
         
-        # Add new segment before head
+        # Add new segment before head, maintaining connectivity
         if len(self.neck_segments) > 1:
-            head_pos = self.neck_segments[-1].position
-            neck_pos = self.neck_segments[-2].position
-            new_segment = NeckSegment(neck_pos, 1, 0, False)
+            # Insert before head
+            head_segment = self.neck_segments[-1]
+            prev_segment = self.neck_segments[-2]
+            
+            # New segment starts where prev ends, ends where head starts
+            new_start = prev_segment.end_pos
+            new_end = head_segment.start_pos
+            new_segment = NeckSegment(new_start, new_end, 1, 0, False)
+            
+            # Adjust to proper length
+            direction = self._get_direction_to_target(new_start, new_end)
+            proper_end = (
+                new_start[0] + direction[0] * SEGMENT_LENGTH,
+                new_start[1] + direction[1] * SEGMENT_LENGTH
+            )
+            new_segment.end_pos = proper_end
+            
+            # Update head to connect properly
+            head_segment.start_pos = proper_end
+            
             self.neck_segments.insert(-1, new_segment)
         else:
-            base_y = self.y - TORSO_RADIUS - SEGMENT_LENGTH
-            new_segment = NeckSegment((self.x, base_y), 1, 0, True)
+            # First segment after torso
+            torso_top = (self.x, self.y - TORSO_RADIUS)
+            new_end = (self.x, torso_top[1] - SEGMENT_LENGTH)
+            new_segment = NeckSegment(torso_top, new_end, 1, 0, True)
             self.neck_segments.append(new_segment)
         
         # Check for consolidation
         self._maybe_consolidate()
     
     def _maybe_consolidate(self):
-        """Simplified consolidation logic"""
-        if len(self.neck_segments) < 11:  # Need minimum segments
+        """Enhanced consolidation for 2-point segments"""
+        if len(self.neck_segments) < 11:
             return
         
         # Keep head separate
@@ -203,7 +273,7 @@ class Character:
         for seg in body_segments:
             level_counts[seg.level] = level_counts.get(seg.level, 0) + 1
         
-        # Find level that needs consolidation (has 10+ segments)
+        # Find level that needs consolidation
         consolidation_level = None
         for level, count in level_counts.items():
             if count >= 10:
@@ -211,10 +281,10 @@ class Character:
                 break
         
         if consolidation_level is not None:
-            self._consolidate_level(consolidation_level)
+            self._consolidate_level_2point(consolidation_level)
     
-    def _consolidate_level(self, level):
-        """Consolidate 5 segments of given level into next level with proper bottom segment handling"""
+    def _consolidate_level_2point(self, level):
+        """Enhanced consolidation maintaining 2-point connectivity"""
         head = self.neck_segments[-1]
         body_segments = self.neck_segments[:-1]
         
@@ -225,7 +295,7 @@ class Character:
             segment = body_segments[i]
             
             if segment.level == level:
-                # Try to collect 5 segments of this level
+                # Collect up to 5 segments of this level
                 group = []
                 j = i
                 while j < len(body_segments) and len(group) < 5 and body_segments[j].level == level:
@@ -233,40 +303,41 @@ class Character:
                     j += 1
                 
                 if len(group) == 5:
-                    # Consolidate these 5 segments
+                    # Consolidate: start from first segment's start, end at last segment's end
                     total_height = sum(seg.height for seg in group)
-                    is_bottom = (i == 0)  # First segment in neck becomes bottom
+                    start_pos = group[0].start_pos
+                    end_pos = group[-1].end_pos
+                    is_bottom = (i == 0)
                     
-                    # Position the consolidated segment
+                    consolidated = NeckSegment(start_pos, end_pos, total_height, level + 1, is_bottom)
+                    
                     if is_bottom:
-                        # Bottom segment: position it as fixed extension from torso
-                        # Don't use current position, calculate from torso
-                        torso_top_y = self.y - TORSO_RADIUS
-                        position = (group[0].position[0], torso_top_y - total_height * SEGMENT_LENGTH)
-                    else:
-                        # Regular consolidation: use first segment's position
-                        position = group[0].position
-                    
-                    consolidated = NeckSegment(position, total_height, level + 1, is_bottom)
-                    
-                    # Mark as bottom segment if consolidating the first segments
-                    if is_bottom:
-                        consolidated.is_bottom_segment = True  # Extra flag for renderer compatibility
+                        consolidated.is_bottom_segment = True
                     
                     new_segments.append(consolidated)
                     i = j
                 else:
-                    # Can't consolidate, keep original
+                    # Can't consolidate
                     new_segments.append(segment)
                     i += 1
             else:
                 new_segments.append(segment)
                 i += 1
         
+        # Ensure proper connectivity in new segment list
+        self._ensure_connectivity(new_segments)
+        
         # Update segments
         self.neck_segments = new_segments + [head]
     
-    # Simplified getter methods
+    def _ensure_connectivity(self, segments):
+        """Ensure all segments are properly connected"""
+        for i in range(1, len(segments)):
+            prev_segment = segments[i-1]
+            current_segment = segments[i]
+            current_segment.start_pos = prev_segment.end_pos
+    
+    # Getter methods remain the same
     def get_neck_segment_count(self):
         return len(self.neck_segments)
     
@@ -277,21 +348,29 @@ class Character:
         return int(self.get_total_neck_length() / SEGMENT_LENGTH)
     
     def get_segment_info_for_rendering(self):
-        """Simplified rendering info"""
+        """Enhanced rendering info with 2-point data"""
         info = []
         for seg in self.neck_segments:
             seg_type = f'ellipse_L{seg.level}' if seg.is_ellipse else 'regular'
-            info.append((seg.position, seg_type, seg.get_radius()))
+            info.append({
+                'start': seg.start_pos,
+                'end': seg.end_pos,
+                'center': seg.position,
+                'type': seg_type,
+                'radius': seg.get_radius(),
+                'angle': seg.get_angle(),
+                'length': seg.get_length()
+            })
         return info
     
     def get_consolidation_stats(self):
-        """Simple stats for debugging"""
+        """Enhanced stats with connectivity info"""
         stats = {}
         total_height = 0
         
         for seg in self.neck_segments:
             if seg.is_ellipse:
-                key = f"Ellipse L{seg.level} (×{seg.height})"
+                key = f"Ellipse L{seg.level} (Ã—{seg.height})"
             else:
                 key = "Regular (L0)"
             
@@ -299,4 +378,5 @@ class Character:
             total_height += seg.height
         
         stats["Total Length"] = total_height
+        stats["Avg Segment Length"] = f"{sum(seg.get_length() for seg in self.neck_segments) / len(self.neck_segments):.1f}"
         return stats
