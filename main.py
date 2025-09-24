@@ -1,15 +1,13 @@
-import pygame
-from elevator_game import ElevatorGame
+#!/usr/bin/env python3
+"""
+Long Neck Zombie Game
+A physics-based game with dynamic LOD system for performance optimization.
 
-def main():
-    pygame.init()
-    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-    
-    try:
-        game = ElevatorGame()
-        game.run()
-    finally:
-        pygame.quit()
+Run this file to start the game.
+"""
+
+from game import Game
 
 if __name__ == "__main__":
-    main()
+    game = Game()
+    game.run()
