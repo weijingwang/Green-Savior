@@ -1,11 +1,4 @@
-def update_segments(self, segments, base_pos, target_pos, ground_y, complexity='normal'):
-        """Update neck segments based on complexity level with ground collision"""
-        if complexity == 'simple':
-            return self._update_simple(segments, base_pos, target_pos, ground_y)
-        elif complexity == 'medium':
-            return self._update_medium(segments, base_pos, target_pos, ground_y)
-        else:
-            return self._update_normal(segments, base_pos, target_pos, ground_y)# physics.py - Fixed physics system with ellipse chain length support
+# physics.py - Fixed physics system with ellipse chain length support
 import math
 from config import SEGMENT_LENGTH, HEAD_RADIUS, NECK_RADIUS
 
