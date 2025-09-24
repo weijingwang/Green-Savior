@@ -1,3 +1,4 @@
+# character.py - Simplified character system
 import math
 from config import *
 from physics import NeckPhysics
@@ -61,20 +62,9 @@ class Character:
         else:
             return 'normal'
     
-    def is_head_at_screen_edge(self, camera):
-        """Check if head is near screen edges"""
-        if not self.neck_segments:
-            return False
-        
-        head_pos = self.neck_segments[-1]
-        screen_x, screen_y = camera.world_to_screen(head_pos[0], head_pos[1])
-        
-        head_radius = HEAD_RADIUS * camera.zoom
-        margin = head_radius + 10
-        
-        return (screen_x < margin or 
-                screen_x > WIDTH - margin or 
-                screen_y < margin)
+    def get_neck_segment_count(self):
+        """Get the current number of neck segments"""
+        return len(self.neck_segments)
     
     def add_neck_segment(self):
         """Add a new neck segment when collecting spots"""

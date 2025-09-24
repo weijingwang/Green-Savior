@@ -1,3 +1,4 @@
+# environment.py - Simplified environment system
 import random
 import math
 from config import *

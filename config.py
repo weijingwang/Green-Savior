@@ -24,7 +24,6 @@ WINDOW_COLOR = (230, 230, 120)
 SPOT_COLOR = (200, 50, 50)
 
 # Performance Settings
-ZOOM_SPEED = 0.0005
 MIN_ZOOM = 0.0005
 
 # Environment Settings

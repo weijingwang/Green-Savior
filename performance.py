@@ -1,3 +1,4 @@
+# performance.py - Simplified LOD system
 class PerformanceManager:
     """Manages Level of Detail (LOD) for performance optimization"""
     

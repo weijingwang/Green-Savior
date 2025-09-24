@@ -1,3 +1,4 @@
+# main.py - Entry point
 #!/usr/bin/env python3
 """
 Long Neck Zombie Game - Refactored Version

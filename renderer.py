@@ -1,3 +1,4 @@
+# renderer.py - Simplified rendering system
 import pygame
 from config import *
 

@@ -1,3 +1,4 @@
+# game.py - Simplified main game class
 import pygame
 import sys
 from config import *
@@ -22,6 +23,11 @@ class Game:
         self.environment = Environment()
         self.renderer = Renderer(self.screen)
         self.performance_manager = PerformanceManager()
+        
+        # Set initial zoom based on starting neck length
+        initial_segments = self.character.get_neck_segment_count()
+        self.camera.set_zoom_for_segment_count(initial_segments)
+        self.camera.zoom = self.camera.target_zoom  # Start at target zoom, no animation
         
         self.running = True
     
@@ -53,9 +59,10 @@ class Game:
         # Update camera to follow character
         self.camera.follow_target(torso_pos[0], torso_pos[1])
         
-        # Check if we need to zoom out
-        if self.character.is_head_at_screen_edge(self.camera):
-            self.camera.zoom_out()
+        # Update zoom based purely on segment count (no oscillation)
+        neck_count = self.character.get_neck_segment_count()
+        self.camera.set_zoom_for_segment_count(neck_count)
+        self.camera.update_zoom_smoothly()
         
         # Update environment
         self.environment.update(self.camera)

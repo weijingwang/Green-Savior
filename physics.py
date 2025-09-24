@@ -1,3 +1,4 @@
+# physics.py - Simplified physics system
 import math
 from config import SEGMENT_LENGTH, HEAD_RADIUS, GROUND_Y
 
