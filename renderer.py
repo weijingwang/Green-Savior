@@ -1,10 +1,10 @@
-# renderer.py - Fixed renderer with ground positioning and zoom-resistant plant scaling
+# renderer.py - Enhanced renderer with environmental objects and altitude-based spots
 import pygame
 import math
 from config import *
 
 class Renderer:
-    """Optimized renderer with fixed ground positioning and zoom-resistant plant scaling"""
+    """Enhanced renderer with environmental objects and altitude spots"""
     
     def __init__(self, screen):
         self.screen = screen
@@ -143,13 +143,126 @@ class Renderer:
                                    (int(wx), int(wy), int(window_w), int(window_h)))
     
     def draw_spot(self, spot, camera):
-        """Draw collectible spot"""
+        """Draw enhanced collectible spot with altitude-based appearance"""
         screen_x, screen_y = camera.world_to_screen(spot.x, spot.y)
-        radius = max(1, int(spot.radius * camera.zoom))
+        visual_radius = max(1, int(spot.get_visual_radius() * camera.zoom))
         
-        if self._is_point_visible(screen_x, screen_y, radius):
-            pygame.draw.circle(self.screen, SPOT_COLOR, 
-                             (int(screen_x), int(screen_y)), radius)
+        if not self._is_point_visible(screen_x, screen_y, visual_radius):
+            return
+        
+        # Get altitude-based color
+        color = spot.get_color()
+        
+        # Draw main spot with pulsing effect
+        pygame.draw.circle(self.screen, color, 
+                         (int(screen_x), int(screen_y)), visual_radius)
+        
+        # Draw altitude tier indicator (multiple rings for higher tiers)
+        if spot.altitude_tier > 0:
+            ring_colors = [
+                (255, 255, 255, 100),  # Tier 1+: White ring
+                (255, 255, 100, 120),  # Tier 2+: Yellow ring  
+                (255, 150, 50, 140),   # Tier 3+: Orange ring
+                (255, 50, 50, 160)     # Tier 4+: Red ring
+            ]
+            
+            for i in range(min(spot.altitude_tier, 4)):
+                ring_radius = visual_radius + (i + 1) * 4
+                if ring_radius < visual_radius * 2:  # Don't make rings too big
+                    ring_surface = pygame.Surface((ring_radius * 2, ring_radius * 2), pygame.SRCALPHA)
+                    ring_color = ring_colors[i][:3]  # RGB only for pygame.draw
+                    pygame.draw.circle(ring_surface, ring_color, (ring_radius, ring_radius), ring_radius, 2)
+                    ring_rect = ring_surface.get_rect(center=(int(screen_x), int(screen_y)))
+                    self.screen.blit(ring_surface, ring_rect)
+        
+        # Draw collection progress indicator
+        if spot.collection_timer > 0:
+            progress = spot.collection_timer / spot.collection_time
+            progress_radius = max(visual_radius + 6, int(visual_radius * 1.3))
+            
+            # Calculate progress arc
+            start_angle = -math.pi / 2  # Start at top
+            end_angle = start_angle + (progress * 2 * math.pi)
+            
+            # Draw progress arc using polygon approximation
+            if progress > 0.05:  # Only draw if meaningful progress
+                self._draw_progress_arc(screen_x, screen_y, progress_radius, start_angle, end_angle, (255, 255, 255))
+        
+        # Draw growth multiplier text for high-tier spots
+        if spot.altitude_tier > 0 and camera.zoom > 0.5:  # Only when zoomed in enough
+            multiplier_text = f"+{spot.growth_multiplier}"
+            text_surface = self.font.render(multiplier_text, True, (255, 255, 255))
+            text_rect = text_surface.get_rect(center=(int(screen_x), int(screen_y - visual_radius - 20)))
+            self.screen.blit(text_surface, text_rect)
+    
+    def _draw_progress_arc(self, center_x, center_y, radius, start_angle, end_angle, color):
+        """Draw a progress arc around a point"""
+        if abs(end_angle - start_angle) < 0.1:
+            return
+        
+        points = [(center_x, center_y)]  # Center point
+        
+        # Calculate arc points
+        num_points = max(3, int(abs(end_angle - start_angle) * 10))
+        for i in range(num_points + 1):
+            angle = start_angle + (end_angle - start_angle) * i / num_points
+            x = center_x + radius * math.cos(angle)
+            y = center_y + radius * math.sin(angle)
+            points.append((x, y))
+        
+        if len(points) >= 3:
+            pygame.draw.polygon(self.screen, color, points)
+    
+    def draw_object(self, obj, camera):
+        """Draw environmental object positioned with bottom on ground"""
+        screen_x, screen_y = camera.world_to_screen(obj.x, obj.y)
+        
+        if obj.image:
+            # Scale object based on camera zoom and object scale factor
+            zoom_scale = max(0.1, camera.zoom * obj.scale_factor)
+            scaled_width = max(4, int(obj.width * zoom_scale))
+            scaled_height = max(4, int(obj.height * zoom_scale))
+            
+            # Quick visibility check
+            if not self._is_visible(screen_x, screen_y, scaled_width, scaled_height):
+                return
+            
+            # Scale the image
+            scaled_image = pygame.transform.scale(obj.image, (scaled_width, scaled_height))
+            
+            # Flip horizontally if needed
+            if obj.flip:
+                scaled_image = pygame.transform.flip(scaled_image, True, False)
+            
+            # Draw image with bottom aligned to world ground position
+            # obj.y is already calculated to put object bottom at ground level
+            self.screen.blit(scaled_image, (int(screen_x), int(screen_y)))
+        else:
+            # Fallback drawing for objects without images
+            fallback_width = max(4, int(50 * camera.zoom))
+            fallback_height = max(4, int(80 * camera.zoom))
+            
+            if self._is_visible(screen_x, screen_y, fallback_width, fallback_height):
+                # Draw different shapes based on object type
+                if obj.object_type == 'tree':
+                    # Tree: Brown trunk + green top
+                    trunk_rect = (int(screen_x + fallback_width * 0.3), int(screen_y + fallback_height * 0.6), 
+                                 int(fallback_width * 0.4), int(fallback_height * 0.4))
+                    pygame.draw.rect(self.screen, (101, 67, 33), trunk_rect)  # Brown trunk
+                    
+                    crown_center = (int(screen_x + fallback_width / 2), int(screen_y + fallback_height * 0.3))
+                    crown_radius = max(2, int(fallback_width * 0.4))
+                    pygame.draw.circle(self.screen, (34, 139, 34), crown_center, crown_radius)  # Green crown
+                elif obj.object_type == 'rock':
+                    # Rock: Gray oval
+                    rock_rect = (int(screen_x), int(screen_y + fallback_height * 0.5), 
+                                fallback_width, int(fallback_height * 0.5))
+                    pygame.draw.ellipse(self.screen, (128, 128, 128), rock_rect)
+                else:
+                    # Bush or default: Green rectangle
+                    bush_rect = (int(screen_x), int(screen_y + fallback_height * 0.3), 
+                                fallback_width, int(fallback_height * 0.7))
+                    pygame.draw.rect(self.screen, (50, 150, 50), bush_rect)
     
     def draw_character(self, character, camera, performance_manager):
         """Draw character with optimized rendering using only active segments"""
@@ -519,7 +632,7 @@ class Renderer:
         return not (x < -margin or x > SCREEN_WIDTH + margin or y < -margin or y > SCREEN_HEIGHT + margin)
     
     def draw_ui(self, character, camera, performance_manager):
-        """Enhanced UI showing optimization information"""
+        """Enhanced UI showing optimization and altitude information"""
         lod = performance_manager.get_lod_settings(camera.zoom)
         stats = character.get_consolidation_stats()
         
@@ -541,9 +654,17 @@ class Renderer:
             f"Avg Angle: {math.degrees(avg_angle):.1f}°",
             f"LOD: {lod['name']}",
             f"Base Frame: {self.base_current_frame + 1}/18 ({self.base_frame_counter}/{self.BASE_FRAMES_PER_IMAGE})",
-            f"Plant Zoom Resistance: 40% (grows slower than zoom)",
             "",
-            "TOP-3 OPTIMIZATION:",
+            "ALTITUDE SPOTS:",
+            "  Ground (Red): +1 segment",
+            "  Low (Orange): +2 segments", 
+            "  Medium (Yellow): +3 segments",
+            "  High (Gold): +5 segments",
+            "  Extreme (Bright Gold): +8 segments",
+            "",
+            "Environmental objects spawn on ground",
+            "Higher spots = larger size + faster collection",
+            "",
         ]
         
         # Show consolidation stats
@@ -558,16 +679,22 @@ class Renderer:
         y_pos = 10
         for line in info_lines:
             if line:
-                # Highlight performance info in different colors
+                # Highlight different types of info in different colors
                 color = (255, 255, 255)
                 if "Performance Gain" in line or "Active Segments" in line:
                     color = (100, 255, 100)
-                elif "TOP-3 OPTIMIZATION" in line:
+                elif "ALTITUDE SPOTS" in line:
                     color = (255, 200, 100)
-                elif "Base Frame" in line or "Plant Zoom Resistance" in line:
-                    color = (100, 200, 255)  # Blue for animation/scaling info
+                elif "Environmental objects" in line or "Higher spots" in line:
+                    color = (150, 200, 255)
+                elif any(tier in line for tier in ["Ground", "Low", "Medium", "High", "Extreme"]):
+                    color = (200, 150, 255)
+                elif "Base Frame" in line:
+                    color = (100, 200, 255)
                 elif "Ground fixed" in line:
-                    color = (255, 150, 100)  # Orange for ground fix info
+                    color = (255, 150, 100)
+                elif "MAX LEVEL" in line:
+                    color = (255, 200, 100)
                 
                 text_surface = self.font.render(line, True, color)
                 self.screen.blit(text_surface, (10, y_pos))

@@ -1,4 +1,4 @@
-# config.py - Fixed configuration with single ground constant
+# config.py - Enhanced configuration with altitude-based features
 
 # Display Settings
 SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
@@ -30,5 +30,18 @@ MIN_ZOOM = 0.0005
 GROUND_SCREEN_Y = 600  # Ground always appears at screen Y = 600
 
 BUILDING_SPEED = 2
-SPOT_SPAWN_CHANCE = 0.01
+SPOT_SPAWN_CHANCE = 0.015  # Slightly increased for altitude variety
 MIN_SPOT_DISTANCE = 100
+
+# New: Environmental Objects
+OBJECT_SPAWN_CHANCE = 0.005  # Less frequent than spots
+OBJECT_TYPES = ['tree', 'rock', 'bush', 'flower', 'mushroom', 'crystal', 'statue']
+
+# Altitude-based spot scaling
+ALTITUDE_TIERS = {
+    0: {'name': 'Ground', 'multiplier': 1, 'color': (200, 50, 50), 'time': 1.0},
+    1: {'name': 'Low', 'multiplier': 2, 'color': (255, 80, 50), 'time': 0.8},
+    2: {'name': 'Medium', 'multiplier': 3, 'color': (255, 150, 50), 'time': 0.6},
+    3: {'name': 'High', 'multiplier': 5, 'color': (255, 200, 50), 'time': 0.4},
+    4: {'name': 'Extreme', 'multiplier': 8, 'color': (255, 255, 100), 'time': 0.2}
+}
