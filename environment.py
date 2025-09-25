@@ -1,16 +1,17 @@
-# environment.py - Fixed environment system
+# environment.py - Fixed environment system with objects properly on ground
 import random
 import math
 from config import *
 
 class Building:
-    """A building in the scrolling environment"""
+    """A building in the scrolling environment - positioned on ground"""
     
     def __init__(self, x_position, ground_world_y):
         self.x = x_position
         self.width = random.randint(int(WIDTH * 1.5), int(WIDTH * 3))
         self.height = random.randint(int(HEIGHT * 0.6), int(HEIGHT * 0.95))
-        self.y = ground_world_y - self.height  # Buildings sit on ground
+        # Building bottom sits exactly on ground level (world Y = 0)
+        self.y = ground_world_y - self.height  # Top of building is negative Y
         
         # Generate window pattern
         self.windows = self._generate_windows()
@@ -45,11 +46,11 @@ class Building:
 
 
 class CollectibleSpot:
-    """Red collectible spots that make the neck grow"""
+    """Red collectible spots that make the neck grow - positioned on or above ground"""
     
     def __init__(self, x, y):
         self.x = x
-        self.y = y
+        self.y = y  # World Y position
         self.radius = 12
         self.collection_timer = 0.0
     
@@ -73,13 +74,16 @@ class Environment:
     def __init__(self):
         self.buildings = []
         self.spots = []
+        # Ground is always at world Y = 0 (constant)
+        self.ground_world_y = 0
     
-    def _spawn_initial_buildings(self, ground_world_y):
-        """Create initial set of buildings"""
+    def _spawn_initial_buildings(self):
+        """Create initial set of buildings on ground"""
         self.buildings = []  # Clear existing buildings
         x_pos = 0
         while x_pos < WIDTH * 2:
-            building = Building(x_pos, ground_world_y)
+            # Buildings sit on ground (world Y = 0)
+            building = Building(x_pos, self.ground_world_y)
             self.buildings.append(building)
             x_pos += building.width + 200
     
@@ -87,7 +91,7 @@ class Environment:
         """Update all environment objects"""
         # Spawn initial buildings if needed
         if not self.buildings:
-            self._spawn_initial_buildings(camera.ground_world_y)
+            self._spawn_initial_buildings()
         
         self._update_buildings(camera)
         self._update_spots(camera)
@@ -119,7 +123,8 @@ class Environment:
             screen_width = WIDTH // camera.zoom
             if last_building.x + last_building.width < camera.x + screen_width:
                 new_x = last_building.x + last_building.width + 200
-                self.buildings.append(Building(new_x, camera.ground_world_y))
+                # Buildings always sit on ground (world Y = 0)
+                self.buildings.append(Building(new_x, self.ground_world_y))
         
         # Spawn new spots randomly
         if random.random() < SPOT_SPAWN_CHANCE:
@@ -128,8 +133,15 @@ class Environment:
     def _try_spawn_spot(self, camera):
         """Try to spawn a new spot above ground level"""
         new_x = camera.x + 400 + random.randint(100, 400)
-        # Spawn spots above ground level where neck can reach them
-        new_y = camera.ground_world_y - random.randint(50, 300)
+        
+        # Spawn spots above ground level (ground is at world Y = 0)
+        # Some spots on ground, some floating above for neck to reach
+        if random.random() < 0.3:
+            # 30% chance: spot on ground level
+            new_y = self.ground_world_y - 10  # Slightly above ground surface
+        else:
+            # 70% chance: spot floating above ground
+            new_y = self.ground_world_y - random.randint(50, 300)  # Negative Y = above ground
         
         # Check minimum distance from existing spots
         for spot in self.spots:

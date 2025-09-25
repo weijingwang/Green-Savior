@@ -1,4 +1,4 @@
-# game.py - Fixed main game class with proper zoom for consolidated segments
+# game.py - Fixed main game class with proper ground positioning and zoom
 import pygame
 import sys
 from config import *
@@ -9,12 +9,12 @@ from renderer import Renderer
 from performance import PerformanceManager
 
 class Game:
-    """Main game class that orchestrates all systems"""
+    """Main game class that orchestrates all systems with fixed ground positioning"""
     
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Plant neck game")
+        pygame.display.set_caption("Plant neck game - Fixed Ground")
         self.clock = pygame.time.Clock()
         
         # Initialize game systems
@@ -59,11 +59,11 @@ class Game:
         mouse_x, mouse_y = pygame.mouse.get_pos()
         target_x, target_y = self.camera.screen_to_world(mouse_x, mouse_y)
         
-        # Update character with ground collision
+        # Update character with ground collision (ground is always at world Y = 0)
         torso_pos = self.character.update(target_x, target_y, self.performance_manager, 
                                          self.camera.ground_world_y)
         
-        # Update camera to follow character
+        # Update camera to follow character (only horizontally)
         self.camera.follow_target(torso_pos[0], torso_pos[1])
         
         # Zoom based on actual neck length, not display segment count
@@ -76,11 +76,14 @@ class Game:
         
         # Handle spot collections
         if self.character.neck_segments:
-            head_segment = self.character.neck_segments[-1]
-            head_pos = head_segment.position
-            self.environment.check_spot_collections(
-                head_pos[0], head_pos[1], self.character
-            )
+            # Find the head segment (should be the middle segment of the plant head structure)
+            active_segments = self.character.get_neck_segments_for_rendering()
+            if len(active_segments) >= 3:
+                head_segment = active_segments[-3]  # Head is 3rd from end in plant structure
+                head_pos = head_segment.position
+                self.environment.check_spot_collections(
+                    head_pos[0], head_pos[1], self.character
+                )
     
     def _render(self):
         """Render everything to screen"""

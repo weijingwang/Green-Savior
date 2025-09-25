@@ -1,4 +1,4 @@
-# character.py - Enhanced character system with top-3 segment optimization
+# character.py - Fixed character system with torso properly positioned on ground
 import math
 from config import *
 from physics import NeckPhysics
@@ -84,11 +84,12 @@ class NeckSegment:
         )
 
 class Character:
-    """Enhanced character with top-3 segment optimization for massive scale performance"""
+    """Fixed character with torso positioned on ground"""
     
     def __init__(self):
+        # Character position: torso center is at ground level (world Y = 0)
         self.x = 0
-        self.y = 0
+        self.y = 0  # Torso center at ground level
         self.neck_segments = self._create_initial_segments()
         self.walk_timer = 0
         self.growth_cooldown = 0
@@ -105,12 +106,15 @@ class Character:
     def _create_initial_segments(self):
         """Create initial neck segments with proper 2-point connectivity and plant head"""
         segments = []
+        # Torso center is at ground level (world Y = 0)
+        # Neck starts from top of torso (negative Y = above ground)
         torso_top = (self.x, self.y - TORSO_RADIUS)
         current_end = torso_top
         
         # Create neck segments (excluding head)
         for i in range(INITIAL_NECK_SEGMENTS - 1):  # -1 because we'll add plant head separately
             start_pos = current_end
+            # Going up (negative Y direction)
             end_pos = (self.x, current_end[1] - SEGMENT_LENGTH)
             
             segment = NeckSegment(start_pos, end_pos, 1, 0, i == 0)
@@ -136,6 +140,7 @@ class Character:
         head_radius = HEAD_RADIUS
         
         # Calculate positions for the plant head structure
+        # Head center is above the neck end
         head_center = (neck_end_pos[0], neck_end_pos[1] - head_radius)
         
         # Left leaf (angled outward)
@@ -189,6 +194,17 @@ class Character:
                                 height=leaf_level * NECK_TO_CONSOLIDATE,
                                 level=leaf_level, is_bottom=False)
         segments.append(right_leaf)
+    
+    def _get_torso_position(self):
+        """Calculate torso position with walking animation - torso center at ground level"""
+        step_phase = (math.sin(self.walk_timer) + 1) / 2
+        
+        # Torso center stays at ground level (world Y = 0)
+        # Only add small walking animation movement
+        torso_y = self.y + math.sin(self.walk_timer * 12) * 3  # Small vertical bob
+        torso_x = self.x + math.sin(self.walk_timer * 0.5) * 15  # Side-to-side sway
+        
+        return (torso_x, torso_y)
     
     def _update_active_segments(self):
         """Update active segments using top-3 level system, always including plant head structure"""
@@ -309,30 +325,6 @@ class Character:
             right_joint_start[0] + base_leaf_length * math.cos(right_angle),
             right_joint_start[1] + base_leaf_length * math.sin(right_angle)
         )
-    
-    def _ensure_active_segment_connectivity(self):
-        """Ensure active segments are properly connected by adjusting positions"""
-        if len(self.active_segments) < 2:
-            return
-        
-        # Start from torso
-        torso_top = (self._cached_torso_pos[0], self._cached_torso_pos[1] - TORSO_RADIUS) if self._cached_torso_pos else (self.x, self.y - TORSO_RADIUS)
-        current_end = torso_top
-        
-        for i, segment in enumerate(self.active_segments):
-            segment.start_pos = current_end
-            
-            # Maintain the segment's current direction and chain length
-            current_length = segment.chain_length
-            current_angle = segment.get_angle()
-            
-            # Update end position
-            segment.end_pos = (
-                current_end[0] + math.cos(current_angle) * current_length,
-                current_end[1] + math.sin(current_angle) * current_length
-            )
-            
-            current_end = segment.end_pos
     
     def update(self, target_x, target_y, performance_manager, ground_world_y):
         """Enhanced update with top-3 optimization"""
@@ -491,19 +483,6 @@ class Character:
         """Simple ground collision"""
         min_y = ground_y - radius
         return (pos[0], min(pos[1], min_y))
-    
-    def _get_torso_position(self):
-        """Calculate torso position with walking animation"""
-        step_phase = (math.sin(self.walk_timer) + 1) / 2
-        
-        # Simplified walking animation
-        if step_phase > 0.3:
-            torso_y = self.y - step_phase * 20
-        else:
-            torso_y = self.y - 14 + math.sin(self.walk_timer * 12) * 6
-        
-        torso_x = self.x + math.sin(self.walk_timer * 0.5) * 15
-        return (torso_x, torso_y)
     
     def add_neck_segment(self):
         """Add segment while preserving plant head structure"""
@@ -675,81 +654,6 @@ class Character:
         # Mark cache dirty and check for more consolidation
         self._segment_cache_dirty = True
         self._maybe_consolidate_with_plant_head()
-    
-    def _maybe_consolidate(self):
-        """Fixed consolidation logic with proper untouched segments"""
-        # Need at least NECK_TO_CONSOLIDATE + UNTOUCHED_NECK_SEGMENTS + 1 (head) total segments
-        min_segments = NECK_TO_CONSOLIDATE + UNTOUCHED_NECK_SEGMENTS + 1
-        if len(self.neck_segments) < min_segments:
-            return
-        
-        # Keep head separate and ensure UNTOUCHED_NECK_SEGMENTS remain untouched
-        head = self.neck_segments[-1]
-        untouched_segments = self.neck_segments[-(UNTOUCHED_NECK_SEGMENTS + 1):-1]  # Exclude head
-        consolidatable_segments = self.neck_segments[:-(UNTOUCHED_NECK_SEGMENTS + 1)]
-        
-        if len(consolidatable_segments) < NECK_TO_CONSOLIDATE:
-            return
-        
-        # Find the lowest level that has at least NECK_TO_CONSOLIDATE segments
-        level_counts = {}
-        level_segments = {}
-        
-        for seg in consolidatable_segments:
-            level = seg.level
-            if level not in level_counts:
-                level_counts[level] = 0
-                level_segments[level] = []
-            level_counts[level] += 1
-            level_segments[level].append(seg)
-        
-        # Find the lowest level with enough segments to consolidate
-        consolidation_level = None
-        for level in sorted(level_counts.keys()):
-            if level_counts[level] >= NECK_TO_CONSOLIDATE:
-                consolidation_level = level
-                break
-        
-        if consolidation_level is not None:
-            self._consolidate_level_2point(consolidation_level, consolidatable_segments, untouched_segments, head)
-            # Mark cache as dirty after consolidation
-            self._segment_cache_dirty = True
-    
-    def _consolidate_level_2point(self, level, consolidatable_segments, untouched_segments, head):
-        """Enhanced consolidation maintaining 2-point connectivity and untouched segments"""
-        new_consolidatable = []
-        segments_to_consolidate = []
-        
-        # Collect segments by level
-        for seg in consolidatable_segments:
-            if seg.level == level and len(segments_to_consolidate) < NECK_TO_CONSOLIDATE:
-                segments_to_consolidate.append(seg)
-            else:
-                new_consolidatable.append(seg)
-        
-        # Only consolidate if we have exactly NECK_TO_CONSOLIDATE segments of this level
-        if len(segments_to_consolidate) == NECK_TO_CONSOLIDATE:
-            # Create consolidated segment
-            total_height = sum(seg.height for seg in segments_to_consolidate)
-            start_pos = segments_to_consolidate[0].start_pos
-            end_pos = segments_to_consolidate[-1].end_pos
-            is_bottom = (segments_to_consolidate[0] == consolidatable_segments[0])
-            
-            consolidated = NeckSegment(start_pos, end_pos, total_height, level + 1, is_bottom)
-            new_consolidatable.append(consolidated)
-        else:
-            # Can't consolidate, keep original segments
-            new_consolidatable.extend(segments_to_consolidate)
-        
-        # Ensure proper connectivity in new segment list
-        all_new_segments = new_consolidatable + untouched_segments
-        self._ensure_connectivity(all_new_segments)
-        
-        # Update segments (consolidatable + untouched + head)
-        self.neck_segments = all_new_segments + [head]
-        
-        # Check if we can consolidate again (recursive consolidation)
-        self._maybe_consolidate()
     
     def _ensure_connectivity(self, segments):
         """Ensure all segments are properly connected"""
