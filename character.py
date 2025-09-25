@@ -133,12 +133,15 @@ class Character:
         return self._cached_torso_pos
     
     def _update_neck_physics_2point(self, target_x, target_y, ground_world_y):
-        """Enhanced physics with proper 2-point connectivity"""
+        """Enhanced physics with proper 2-point connectivity and dual-segment flexibility"""
         if not self.neck_segments:
             return
         
         # Start from torso top
         torso_top = (self._cached_torso_pos[0], self._cached_torso_pos[1] - TORSO_RADIUS)
+        
+        # Get max level to determine which segments need dual-segment physics
+        max_level = self.get_max_level_on_screen()
         
         # Update each segment maintaining connectivity
         current_start = torso_top
@@ -146,49 +149,129 @@ class Character:
         for i, segment in enumerate(self.neck_segments):
             is_head = (i == len(self.neck_segments) - 1)
             
-            # Calculate desired direction toward target
-            if is_head:
-                # Head segment points directly toward target
-                target_pos = (target_x, target_y)
+            # Check if this segment should use dual-segment physics
+            should_split = max_level >= 3 and segment.level == max_level
+            
+            if should_split and not is_head:
+                # Update as two connected sub-segments for flexibility
+                current_start = self._update_dual_segment_physics(segment, current_start, target_x, target_y, ground_world_y)
             else:
-                # Body segments use a mix of target direction and chain following
-                target_pos = (target_x, target_y)
-            
-            direction = self._get_direction_to_target(current_start, target_pos)
-            
-            # Calculate desired end position
-            desired_end = (
-                current_start[0] + direction[0] * segment.chain_length,
-                current_start[1] + direction[1] * segment.chain_length
-            )
-            
-        # Apply physics with stiffness based on segment weight (larger segments move slower)
-            segment_weight = segment.height
-            weight_factor = 1.0 / (1.0 + segment_weight * 0.05)  # Heavier segments have more inertia
-            stiffness = 0.15 * weight_factor
-            
-            old_end = segment.end_pos
-            new_end = (
-                old_end[0] * (1 - stiffness) + desired_end[0] * stiffness,
-                old_end[1] * (1 - stiffness) + desired_end[1] * stiffness
-            )
-            
-            # Maintain proper chain length
-            actual_direction = self._get_direction_to_target(current_start, new_end)
-            constrained_end = (
-                current_start[0] + actual_direction[0] * segment.chain_length,
-                current_start[1] + actual_direction[1] * segment.chain_length
-            )
-            
-            # Apply ground collision to end point
-            final_end = self._apply_ground_collision(constrained_end, ground_world_y, segment.get_radius())
-            
-            # Update segment with connected points
-            segment.start_pos = current_start
-            segment.end_pos = final_end
-            
-            # Next segment starts where this one ends
-            current_start = final_end
+                # Regular single-segment physics
+                current_start = self._update_single_segment_physics(segment, current_start, target_x, target_y, ground_world_y, is_head)
+    
+    def _update_single_segment_physics(self, segment, current_start, target_x, target_y, ground_world_y, is_head):
+        """Update physics for a single segment"""
+        # Calculate desired direction toward target
+        if is_head:
+            target_pos = (target_x, target_y)
+        else:
+            target_pos = (target_x, target_y)
+        
+        direction = self._get_direction_to_target(current_start, target_pos)
+        
+        # Calculate desired end position
+        desired_end = (
+            current_start[0] + direction[0] * segment.chain_length,
+            current_start[1] + direction[1] * segment.chain_length
+        )
+        
+        # Apply physics with stiffness based on segment weight
+        segment_weight = segment.height
+        weight_factor = 1.0 / (1.0 + segment_weight * 0.05)
+        stiffness = 0.15 * weight_factor
+        
+        old_end = segment.end_pos
+        new_end = (
+            old_end[0] * (1 - stiffness) + desired_end[0] * stiffness,
+            old_end[1] * (1 - stiffness) + desired_end[1] * stiffness
+        )
+        
+        # Maintain proper chain length
+        actual_direction = self._get_direction_to_target(current_start, new_end)
+        constrained_end = (
+            current_start[0] + actual_direction[0] * segment.chain_length,
+            current_start[1] + actual_direction[1] * segment.chain_length
+        )
+        
+        # Apply ground collision
+        final_end = self._apply_ground_collision(constrained_end, ground_world_y, segment.get_radius())
+        
+        # Update segment
+        segment.start_pos = current_start
+        segment.end_pos = final_end
+        
+        return final_end
+    
+    def _update_dual_segment_physics(self, segment, current_start, target_x, target_y, ground_world_y):
+        """Update physics for a segment split into two flexible sub-segments"""
+        # Split the chain length into two parts
+        sub_length = segment.chain_length / 2
+        
+        # Create virtual midpoint for flexibility
+        if not hasattr(segment, '_virtual_mid'):
+            # Initialize virtual midpoint at segment center
+            center = ((segment.start_pos[0] + segment.end_pos[0]) / 2,
+                     (segment.start_pos[1] + segment.end_pos[1]) / 2)
+            segment._virtual_mid = center
+        
+        # Physics for first sub-segment (start to virtual mid)
+        direction1 = self._get_direction_to_target(current_start, (target_x, target_y))
+        desired_mid = (
+            current_start[0] + direction1[0] * sub_length,
+            current_start[1] + direction1[1] * sub_length
+        )
+        
+        # Apply stiffness to virtual midpoint
+        segment_weight = segment.height
+        weight_factor = 1.0 / (1.0 + segment_weight * 0.03)  # More flexible for dual segments
+        stiffness = 0.2 * weight_factor
+        
+        old_mid = segment._virtual_mid
+        new_mid = (
+            old_mid[0] * (1 - stiffness) + desired_mid[0] * stiffness,
+            old_mid[1] * (1 - stiffness) + desired_mid[1] * stiffness
+        )
+        
+        # Constrain first sub-segment length
+        actual_direction1 = self._get_direction_to_target(current_start, new_mid)
+        constrained_mid = (
+            current_start[0] + actual_direction1[0] * sub_length,
+            current_start[1] + actual_direction1[1] * sub_length
+        )
+        
+        # Apply ground collision to midpoint
+        constrained_mid = self._apply_ground_collision(constrained_mid, ground_world_y, segment.get_radius())
+        segment._virtual_mid = constrained_mid
+        
+        # Physics for second sub-segment (virtual mid to end)
+        direction2 = self._get_direction_to_target(constrained_mid, (target_x, target_y))
+        desired_end = (
+            constrained_mid[0] + direction2[0] * sub_length,
+            constrained_mid[1] + direction2[1] * sub_length
+        )
+        
+        # Apply stiffness to end point
+        old_end = segment.end_pos
+        new_end = (
+            old_end[0] * (1 - stiffness) + desired_end[0] * stiffness,
+            old_end[1] * (1 - stiffness) + desired_end[1] * stiffness
+        )
+        
+        # Constrain second sub-segment length
+        actual_direction2 = self._get_direction_to_target(constrained_mid, new_end)
+        constrained_end = (
+            constrained_mid[0] + actual_direction2[0] * sub_length,
+            constrained_mid[1] + actual_direction2[1] * sub_length
+        )
+        
+        # Apply ground collision to end
+        final_end = self._apply_ground_collision(constrained_end, ground_world_y, segment.get_radius())
+        
+        # Update segment endpoints
+        segment.start_pos = current_start
+        segment.end_pos = final_end
+        
+        return final_end
     
     def _get_direction_to_target(self, from_pos, target_pos):
         """Get normalized direction vector"""
@@ -260,75 +343,77 @@ class Character:
         self._maybe_consolidate()
     
     def _maybe_consolidate(self):
-        """Enhanced consolidation for 2-point segments"""
-        if len(self.neck_segments) < 11:
+        """Fixed consolidation logic with proper untouched segments"""
+        # Need at least NECK_TO_CONSOLIDATE + UNTOUCHED_NECK_SEGMENTS + 1 (head) total segments
+        min_segments = NECK_TO_CONSOLIDATE + UNTOUCHED_NECK_SEGMENTS + 1
+        if len(self.neck_segments) < min_segments:
             return
         
-        # Keep head separate
+        # Keep head separate and ensure UNTOUCHED_NECK_SEGMENTS remain untouched
         head = self.neck_segments[-1]
-        body_segments = self.neck_segments[:-1]
+        untouched_segments = self.neck_segments[-(UNTOUCHED_NECK_SEGMENTS + 1):-1]  # Exclude head
+        consolidatable_segments = self.neck_segments[:-(UNTOUCHED_NECK_SEGMENTS + 1)]
         
-        # Count segments by level
+        if len(consolidatable_segments) < NECK_TO_CONSOLIDATE:
+            return
+        
+        # Find the lowest level that has at least NECK_TO_CONSOLIDATE segments
         level_counts = {}
-        for seg in body_segments:
-            level_counts[seg.level] = level_counts.get(seg.level, 0) + 1
+        level_segments = {}
         
-        # Find level that needs consolidation
+        for seg in consolidatable_segments:
+            level = seg.level
+            if level not in level_counts:
+                level_counts[level] = 0
+                level_segments[level] = []
+            level_counts[level] += 1
+            level_segments[level].append(seg)
+        
+        # Find the lowest level with enough segments to consolidate
         consolidation_level = None
-        for level, count in level_counts.items():
-            if count >= 10:
+        for level in sorted(level_counts.keys()):
+            if level_counts[level] >= NECK_TO_CONSOLIDATE:
                 consolidation_level = level
                 break
         
         if consolidation_level is not None:
-            self._consolidate_level_2point(consolidation_level)
+            self._consolidate_level_2point(consolidation_level, consolidatable_segments, untouched_segments, head)
     
-    def _consolidate_level_2point(self, level):
-        """Enhanced consolidation maintaining 2-point connectivity"""
-        head = self.neck_segments[-1]
-        body_segments = self.neck_segments[:-1]
+    def _consolidate_level_2point(self, level, consolidatable_segments, untouched_segments, head):
+        """Enhanced consolidation maintaining 2-point connectivity and untouched segments"""
+        new_consolidatable = []
+        segments_to_consolidate = []
         
-        new_segments = []
-        i = 0
-        
-        while i < len(body_segments):
-            segment = body_segments[i]
-            
-            if segment.level == level:
-                # Collect up to 5 segments of this level
-                group = []
-                j = i
-                while j < len(body_segments) and len(group) < 5 and body_segments[j].level == level:
-                    group.append(body_segments[j])
-                    j += 1
-                
-                if len(group) == 5:
-                    # Consolidate: start from first segment's start, end at last segment's end
-                    total_height = sum(seg.height for seg in group)
-                    start_pos = group[0].start_pos
-                    end_pos = group[-1].end_pos
-                    is_bottom = (i == 0)
-                    
-                    consolidated = NeckSegment(start_pos, end_pos, total_height, level + 1, is_bottom)
-                    
-                    if is_bottom:
-                        consolidated.is_bottom_segment = True
-                    
-                    new_segments.append(consolidated)
-                    i = j
-                else:
-                    # Can't consolidate
-                    new_segments.append(segment)
-                    i += 1
+        # Collect segments by level
+        for seg in consolidatable_segments:
+            if seg.level == level and len(segments_to_consolidate) < NECK_TO_CONSOLIDATE:
+                segments_to_consolidate.append(seg)
             else:
-                new_segments.append(segment)
-                i += 1
+                new_consolidatable.append(seg)
+        
+        # Only consolidate if we have exactly NECK_TO_CONSOLIDATE segments of this level
+        if len(segments_to_consolidate) == NECK_TO_CONSOLIDATE:
+            # Create consolidated segment
+            total_height = sum(seg.height for seg in segments_to_consolidate)
+            start_pos = segments_to_consolidate[0].start_pos
+            end_pos = segments_to_consolidate[-1].end_pos
+            is_bottom = (segments_to_consolidate[0] == consolidatable_segments[0])
+            
+            consolidated = NeckSegment(start_pos, end_pos, total_height, level + 1, is_bottom)
+            new_consolidatable.append(consolidated)
+        else:
+            # Can't consolidate, keep original segments
+            new_consolidatable.extend(segments_to_consolidate)
         
         # Ensure proper connectivity in new segment list
-        self._ensure_connectivity(new_segments)
+        all_new_segments = new_consolidatable + untouched_segments
+        self._ensure_connectivity(all_new_segments)
         
-        # Update segments
-        self.neck_segments = new_segments + [head]
+        # Update segments (consolidatable + untouched + head)
+        self.neck_segments = all_new_segments + [head]
+        
+        # Check if we can consolidate again (recursive consolidation)
+        self._maybe_consolidate()
     
     def _ensure_connectivity(self, segments):
         """Ensure all segments are properly connected"""
@@ -370,7 +455,7 @@ class Character:
         
         for seg in self.neck_segments:
             if seg.is_ellipse:
-                key = f"Ellipse L{seg.level} (Ã—{seg.height})"
+                key = f"Ellipse L{seg.level} (×{seg.height})"
             else:
                 key = "Regular (L0)"
             
@@ -380,3 +465,9 @@ class Character:
         stats["Total Length"] = total_height
         stats["Avg Segment Length"] = f"{sum(seg.get_length() for seg in self.neck_segments) / len(self.neck_segments):.1f}"
         return stats
+    
+    def get_max_level_on_screen(self):
+        """Get the highest consolidation level currently in the neck"""
+        if not self.neck_segments:
+            return 0
+        return max(seg.level for seg in self.neck_segments)

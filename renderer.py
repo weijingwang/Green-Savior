@@ -1,4 +1,4 @@
-# renderer.py - Enhanced rendering system with 2-point segment support
+# renderer.py - Enhanced rendering system with 2-point segment support and dual-ellipse rendering
 import pygame
 import math
 from config import *
@@ -13,6 +13,7 @@ class Renderer:
         # Cache frequently used values
         self._screen_bounds = (-50, -50, WIDTH + 50, HEIGHT + 50)
         self._ellipse_colors = {}  # Cache colors by consolidation level
+        self.character = None  # Store character reference for dual-ellipse logic
     
     def clear_screen(self):
         """Clear screen with background color"""
@@ -72,6 +73,9 @@ class Renderer:
     def draw_character(self, character, camera, performance_manager):
         """Draw character with enhanced 2-point neck rendering"""
         torso_pos = character._cached_torso_pos or character._get_torso_position()
+        
+        # Store character reference for segment rendering
+        self.character = character
         
         # Draw torso
         screen_x, screen_y = camera.world_to_screen(torso_pos[0], torso_pos[1])
@@ -139,7 +143,14 @@ class Renderer:
             return
         
         if segment.type == 'ellipse':
-            self._draw_ellipse_segment_2point(segment, start_screen, end_screen, camera)
+            # Check if we should render as dual ellipses
+            max_level = self.character.get_max_level_on_screen() if self.character else 0
+            should_split = max_level >= 3 and segment.level == max_level
+            
+            if should_split:
+                self._draw_dual_ellipse_segment_2point(segment, start_screen, end_screen, camera)
+            else:
+                self._draw_ellipse_segment_2point(segment, start_screen, end_screen, camera)
         else:
             self._draw_regular_segment_2point(segment, start_screen, end_screen, camera, segment_index, total_segments)
     
@@ -184,6 +195,69 @@ class Renderer:
             connection_radius = max(1, int(2 * camera.zoom))
             pygame.draw.circle(self.screen, (200, 200, 200), (int(start_screen[0]), int(start_screen[1])), connection_radius)
             pygame.draw.circle(self.screen, (200, 200, 200), (int(end_screen[0]), int(end_screen[1])), connection_radius)
+    
+    def _draw_dual_ellipse_segment_2point(self, segment, start_screen, end_screen, camera):
+        """Draw highest-level segment as two connected ellipses for flexibility"""
+        # Get the virtual midpoint if it exists from physics
+        if hasattr(segment, '_virtual_mid'):
+            mid_world = segment._virtual_mid
+            mid_screen = camera.world_to_screen(mid_world[0], mid_world[1])
+        else:
+            # Fallback to geometric center
+            mid_screen = ((start_screen[0] + end_screen[0]) / 2, (start_screen[1] + end_screen[1]) / 2)
+        
+        # Calculate dimensions for each sub-segment
+        length1 = math.hypot(mid_screen[0] - start_screen[0], mid_screen[1] - start_screen[1])
+        length2 = math.hypot(end_screen[0] - mid_screen[0], end_screen[1] - mid_screen[1])
+        
+        # Height based on consolidation level but slightly smaller for dual ellipses
+        height_mult = 1.1 + 0.2 * segment.consolidation_level
+        height_screen = max(4, int(NECK_RADIUS * camera.zoom * height_mult * 1.8))
+        
+        # Get rotation angles for each sub-segment
+        angle1 = math.atan2(mid_screen[1] - start_screen[1], mid_screen[0] - start_screen[0])
+        angle2 = math.atan2(end_screen[1] - mid_screen[1], end_screen[0] - mid_screen[0])
+        
+        # Color with slight variation
+        base_color = self._get_cached_ellipse_color(segment.consolidation_level)
+        color1 = (
+            min(255, base_color[0] + 15),
+            min(255, base_color[1] + 8),
+            base_color[2]
+        )
+        color2 = (
+            max(0, base_color[0] - 8),
+            base_color[1],
+            min(255, base_color[2] + 15)
+        )
+        
+        # Centers for the ellipses (positioned along each sub-segment)
+        ellipse1_center = (
+            (start_screen[0] + mid_screen[0]) / 2,
+            (start_screen[1] + mid_screen[1]) / 2
+        )
+        ellipse2_center = (
+            (mid_screen[0] + end_screen[0]) / 2,
+            (mid_screen[1] + end_screen[1]) / 2
+        )
+        
+        # Draw both ellipses with their respective lengths
+        ellipse1_width = max(length1 * 0.8, height_screen * 0.6)
+        ellipse2_width = max(length2 * 0.8, height_screen * 0.6)
+        
+        self._draw_rotated_ellipse(ellipse1_center, ellipse1_width, height_screen, angle1, color1)
+        self._draw_rotated_ellipse(ellipse2_center, ellipse2_width, height_screen, angle2, color2)
+        
+        # Draw connection at virtual midpoint for visual continuity
+        if camera.zoom > 0.03:
+            mid_radius = max(2, int(4 * camera.zoom))
+            pygame.draw.circle(self.screen, base_color, (int(mid_screen[0]), int(mid_screen[1])), mid_radius)
+        
+        # Draw connection indicators at endpoints
+        if camera.zoom > 0.05:
+            connection_radius = max(1, int(2 * camera.zoom))
+            pygame.draw.circle(self.screen, (220, 220, 220), (int(start_screen[0]), int(start_screen[1])), connection_radius)
+            pygame.draw.circle(self.screen, (220, 220, 220), (int(end_screen[0]), int(end_screen[1])), connection_radius)
     
     def _draw_thick_line(self, start_pos, end_pos, thickness, color):
         """Draw thick line as a series of circles (capsule shape)"""
@@ -291,6 +365,7 @@ class Renderer:
         """Enhanced UI with 2-point segment information"""
         lod = performance_manager.get_lod_settings(camera.zoom)
         stats = character.get_consolidation_stats()
+        max_level = character.get_max_level_on_screen()
         
         # Calculate connectivity info
         total_length = sum(seg.get_length() for seg in character.neck_segments)
@@ -301,7 +376,8 @@ class Renderer:
             f"Zoom: {camera.zoom:.3f}x",
             f"Segments: {character.get_neck_segment_count()}",
             f"Total Length: {total_length:.1f}",
-            f"Avg Angle: {math.degrees(avg_angle):.1f}Â°",
+            f"Avg Angle: {math.degrees(avg_angle):.1f}°",
+            f"Max Level: {max_level}",
             f"LOD: {lod['name']}",
             "",
             "2-Point Connectivity:",
@@ -312,6 +388,11 @@ class Renderer:
             if stat_name == "Total Length":
                 continue
             info_lines.append(f"  {stat_name}: {value}")
+        
+        # Show dual-ellipse info
+        if max_level >= 3:
+            dual_ellipse_count = sum(1 for seg in character.neck_segments if seg.level == max_level)
+            info_lines.append(f"  Dual-Ellipse L{max_level}: {dual_ellipse_count}")
         
         info_lines.extend(["", "Hold SPACE to grow neck"])
         
