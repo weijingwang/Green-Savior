@@ -1,5 +1,5 @@
 # camera.py - Fixed camera system with ground always at fixed screen position
-from config import WIDTH, HEIGHT, MIN_ZOOM, SEGMENT_LENGTH, TORSO_RADIUS, HEAD_RADIUS, GROUND_SCREEN_Y
+from config import *
 
 class Camera:
     """Handles camera position and zoom with ground always at screen Y = 600"""
@@ -16,14 +16,14 @@ class Camera:
     
     def world_to_screen(self, world_x, world_y):
         """Convert world coordinates to screen coordinates with fixed ground"""
-        screen_x = (world_x - self.x) * self.zoom + WIDTH // 2
+        screen_x = (world_x - self.x) * self.zoom + SCREEN_WIDTH // 2
         # Fixed ground positioning: ground_world_y always maps to GROUND_SCREEN_Y
         screen_y = (world_y - self.ground_world_y) * self.zoom + GROUND_SCREEN_Y
         return screen_x, screen_y
     
     def screen_to_world(self, screen_x, screen_y):
         """Convert screen coordinates to world coordinates"""
-        world_x = (screen_x - WIDTH // 2) / self.zoom + self.x
+        world_x = (screen_x - SCREEN_WIDTH // 2) / self.zoom + self.x
         world_y = (screen_y - GROUND_SCREEN_Y) / self.zoom + self.ground_world_y
         return world_x, world_y
     

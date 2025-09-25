@@ -1,8 +1,7 @@
 # config.py - Fixed configuration with single ground constant
-import pygame
 
 # Display Settings
-WIDTH, HEIGHT = 1280, 720
+SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
 FPS = 60
 BG_COLOR = (30, 30, 30)
 
@@ -33,5 +32,3 @@ GROUND_SCREEN_Y = 600  # Ground always appears at screen Y = 600
 BUILDING_SPEED = 2
 SPOT_SPAWN_CHANCE = 0.01
 MIN_SPOT_DISTANCE = 100
-
-pygame.font.init()

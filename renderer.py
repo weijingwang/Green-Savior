@@ -11,7 +11,7 @@ class Renderer:
         self.font = pygame.font.Font(None, 28)
         
         # Cache frequently used values
-        self._screen_bounds = (-50, -50, WIDTH + 50, HEIGHT + 50)
+        self._screen_bounds = (-50, -50, SCREEN_WIDTH + 50, SCREEN_HEIGHT + 50)
         self._ellipse_colors = {}  # Cache colors by consolidation level
         
         # Load plant images
@@ -103,9 +103,9 @@ class Renderer:
         """Draw the ground plane at fixed screen position"""
         # Ground is always at screen Y = GROUND_SCREEN_Y (600)
         ground_screen_y = GROUND_SCREEN_Y
-        if 0 < ground_screen_y < HEIGHT:
+        if 0 < ground_screen_y < SCREEN_HEIGHT:
             pygame.draw.rect(self.screen, (20, 20, 50), 
-                           (0, ground_screen_y, WIDTH, HEIGHT - ground_screen_y))
+                           (0, ground_screen_y, SCREEN_WIDTH, SCREEN_HEIGHT - ground_screen_y))
     
     def draw_building(self, building, camera):
         """Draw building with optimized window rendering"""
@@ -506,17 +506,17 @@ class Renderer:
         min_x, max_x = min(x1, x2), max(x1, x2)
         min_y, max_y = min(y1, y2), max(y1, y2)
         
-        return not (max_x < -margin or min_x > WIDTH + margin or 
-                   max_y < -margin or min_y > HEIGHT + margin)
+        return not (max_x < -margin or min_x > SCREEN_WIDTH + margin or 
+                   max_y < -margin or min_y > SCREEN_HEIGHT + margin)
     
     def _is_visible(self, x, y, w, h):
         """Fast visibility check for rectangles"""
-        return not (x + w < -50 or x > WIDTH + 50 or y + h < -50 or y > HEIGHT + 50)
+        return not (x + w < -50 or x > SCREEN_WIDTH + 50 or y + h < -50 or y > SCREEN_HEIGHT + 50)
     
     def _is_point_visible(self, x, y, radius):
         """Fast visibility check for circles"""
         margin = radius + 20
-        return not (x < -margin or x > WIDTH + margin or y < -margin or y > HEIGHT + margin)
+        return not (x < -margin or x > SCREEN_WIDTH + margin or y < -margin or y > SCREEN_HEIGHT + margin)
     
     def draw_ui(self, character, camera, performance_manager):
         """Enhanced UI showing optimization information"""

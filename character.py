@@ -1,7 +1,6 @@
 # character.py - Fixed character system with torso properly positioned on ground
 import math
 from config import *
-from physics import NeckPhysics
 
 class NeckSegment:
     """Enhanced neck segment with start/end points for proper connectivity"""
@@ -724,7 +723,7 @@ class Character:
         for seg in self.neck_segments:
             level_key = f"Level {seg.level}"
             if seg.is_ellipse:
-                level_key += f" (×{seg.height})"
+                level_key += f" (Ã—{seg.height})"
             
             # Count totals
             all_levels[level_key] = all_levels.get(level_key, 0) + 1
@@ -745,9 +744,9 @@ class Character:
             level_num = int(level.split()[1])
             
             if level_num >= min_active_level:
-                stats[f"✓ {level}"] = f"{active_count}/{total_count} ACTIVE"
+                stats[f"âœ“ {level}"] = f"{active_count}/{total_count} ACTIVE"
             else:
-                stats[f"✗ {level}"] = f"0/{total_count} skipped"
+                stats[f"âœ— {level}"] = f"0/{total_count} skipped"
         
         # Add summary info
         stats["  "] = ""  # Spacer

@@ -1,6 +1,5 @@
-# game.py - Fixed main game class with proper ground positioning and zoom
-import pygame
-import sys
+# game.py - plant grow tall game
+import pygame, sys
 from config import *
 from camera import Camera
 from character import Character
@@ -12,9 +11,11 @@ class Game:
     """Main game class that orchestrates all systems with fixed ground positioning"""
     
     def __init__(self):
+        pygame.mixer.pre_init()
         pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        pygame.font.init()
         pygame.display.set_caption("Plant neck game - Fixed Ground")
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
         # Initialize game systems
@@ -48,7 +49,7 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
         
-        # Handle space bar for neck growth
+        # Handle space bar for neck growth ======================= (DEBUG ONLY: comment when game is done)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_SPACE]:
             self.character.add_neck_segment()
@@ -75,7 +76,7 @@ class Game:
         self.environment.update(self.camera)
         
         # Handle spot collections
-        if self.character.neck_segments:
+        if self.character.add_neck_segment:
             # Find the head segment (should be the middle segment of the plant head structure)
             active_segments = self.character.get_neck_segments_for_rendering()
             if len(active_segments) >= 3:

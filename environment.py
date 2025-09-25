@@ -8,8 +8,8 @@ class Building:
     
     def __init__(self, x_position, ground_world_y):
         self.x = x_position
-        self.width = random.randint(int(WIDTH * 1.5), int(WIDTH * 3))
-        self.height = random.randint(int(HEIGHT * 0.6), int(HEIGHT * 0.95))
+        self.width = random.randint(int(SCREEN_WIDTH * 1.5), int(SCREEN_WIDTH * 3))
+        self.height = random.randint(int(SCREEN_HEIGHT * 0.6), int(SCREEN_HEIGHT * 0.95))
         # Building bottom sits exactly on ground level (world Y = 0)
         self.y = ground_world_y - self.height  # Top of building is negative Y
         
@@ -81,7 +81,7 @@ class Environment:
         """Create initial set of buildings on ground"""
         self.buildings = []  # Clear existing buildings
         x_pos = 0
-        while x_pos < WIDTH * 2:
+        while x_pos < SCREEN_WIDTH * 2:
             # Buildings sit on ground (world Y = 0)
             building = Building(x_pos, self.ground_world_y)
             self.buildings.append(building)
@@ -102,7 +102,7 @@ class Environment:
         for building in self.buildings:
             building.update()
         
-        screen_width = WIDTH // camera.zoom
+        screen_width = SCREEN_WIDTH // camera.zoom
         self.buildings = [b for b in self.buildings 
                          if not b.is_offscreen(camera.x, screen_width)]
     
@@ -111,7 +111,7 @@ class Environment:
         for spot in self.spots:
             spot.update()
         
-        screen_width = WIDTH // camera.zoom
+        screen_width = SCREEN_WIDTH // camera.zoom
         self.spots = [s for s in self.spots 
                      if not s.is_offscreen(camera.x, screen_width)]
     
@@ -120,7 +120,7 @@ class Environment:
         # Spawn new buildings
         if self.buildings:
             last_building = self.buildings[-1]
-            screen_width = WIDTH // camera.zoom
+            screen_width = SCREEN_WIDTH // camera.zoom
             if last_building.x + last_building.width < camera.x + screen_width:
                 new_x = last_building.x + last_building.width + 200
                 # Buildings always sit on ground (world Y = 0)
