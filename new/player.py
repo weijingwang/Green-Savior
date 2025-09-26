@@ -1,5 +1,4 @@
 import pygame, os
-import math
 from pygame.math import Vector2
 from constants import *
 from utils import Animator
@@ -13,17 +12,25 @@ class VineSegment:
         self.consolidated_count = consolidated_count  # How many original segments this represents
         self.length = PLANT_SEGMENT_HEIGHT_PIXELS * consolidated_count  # Scaled length
         self.thickness = self.calculate_thickness()
+        self.mass = self.calculate_mass()  # New: mass affects physics
     
     def calculate_thickness(self):
         """Calculate thickness based on level and position in chain"""
         base_thickness = 12
         level_multiplier = 1.5 ** self.level  # Thicker for higher levels
         return max(4, int(base_thickness * level_multiplier))
+    
+    def calculate_mass(self):
+        """Calculate mass based on level - higher levels are much heavier"""
+        base_mass = 1.0
+        # Mass increases exponentially with level (heavier segments move much slower)
+        mass_multiplier = 2.5 ** self.level  # Each level is 2.5x heavier
+        return base_mass * mass_multiplier * self.consolidated_count
 
 class Player:
     def __init__(self, x, y, image_folder="assets/images/player"):
         """
-        Enhanced Player class with segment consolidation
+        Enhanced Player class with segment consolidation and mass-based physics
         """
 
         # Plant base setup (unchanged)
@@ -42,6 +49,7 @@ class Player:
         self.gravity = 0.2
         self.mouse_strength = 0.04
         self.constraint_iterations = 3
+        self.damping = 0.98  # New: damping factor to simulate air resistance
         
         # Initialize with level 0 segments
         self.segments = []
@@ -213,7 +221,7 @@ class Player:
             print("---")
     
     def update_physics(self):
-        """Update physics for all segments"""
+        """Update physics for all segments with mass-based movement"""
         # Apply forces to all segments except the base
         for i in range(1, len(self.segments)):
             segment = self.segments[i]
@@ -224,21 +232,33 @@ class Player:
             # Calculate velocity (Verlet integration)
             velocity = segment.position - segment.old_position
             
-            # Apply gravity
-            velocity.y += self.gravity
+            # Apply damping based on mass (heavier segments are more resistant to movement)
+            mass_damping = self.damping ** (1.0 / segment.mass)  # Heavier = more damping
+            velocity *= mass_damping
             
-            # Apply mouse force to last segment (head)
+            # Apply gravity (F = ma, so acceleration = F/m)
+            gravity_acceleration = self.gravity / segment.mass  # Heavier segments fall slower
+            velocity.y += gravity_acceleration
+            
+            # Apply mouse force to last segment (head) - also affected by mass
             if i == len(self.segments) - 1:
                 mouse_pos = Vector2(pygame.mouse.get_pos())
                 to_mouse = mouse_pos - segment.position
-                velocity += to_mouse * self.mouse_strength
+                # Mouse force is reduced by mass (heavier segments respond less to mouse)
+                mouse_acceleration = (to_mouse * self.mouse_strength) / segment.mass
+                velocity += mouse_acceleration
+            
+            # Limit velocity to prevent instability (especially important for light segments)
+            max_velocity = 10.0 / (segment.mass ** 0.3)  # Lighter segments can move faster
+            if velocity.length() > max_velocity:
+                velocity = velocity.normalize() * max_velocity
             
             # Update positions
             segment.old_position = current_pos
             segment.position += velocity
     
     def apply_constraints(self):
-        """Apply distance constraints between segments"""
+        """Apply distance constraints between segments with mass consideration"""
         for iteration in range(self.constraint_iterations):
             # Forward pass
             for i in range(len(self.segments) - 1):
@@ -256,8 +276,13 @@ class Player:
                     if i == 0:  # Base segment - don't move
                         next_segment.position += correction * 2
                     else:
-                        current.position -= correction
-                        next_segment.position += correction
+                        # Distribute correction based on mass ratio
+                        total_mass = current.mass + next_segment.mass
+                        current_weight = next_segment.mass / total_mass  # Heavier segments move less
+                        next_weight = current.mass / total_mass
+                        
+                        current.position -= correction * current_weight
+                        next_segment.position += correction * next_weight
             
             # Backward pass
             for i in range(len(self.segments) - 2, -1, -1):
@@ -275,8 +300,13 @@ class Player:
                     if i == 0:  # Base segment - don't move
                         next_segment.position -= correction * 2
                     else:
-                        current.position += correction
-                        next_segment.position -= correction
+                        # Distribute correction based on mass ratio
+                        total_mass = current.mass + next_segment.mass
+                        current_weight = next_segment.mass / total_mass  # Heavier segments move less
+                        next_weight = current.mass / total_mass
+                        
+                        current.position += correction * current_weight
+                        next_segment.position -= correction * next_weight
         
         # Apply ground collision
         self.apply_ground_collision()
@@ -329,7 +359,7 @@ class Player:
         """Debug function to show current segment structure"""
         info = []
         for i, segment in enumerate(self.segments):
-            info.append(f"Segment {i}: Level {segment.level}, Count {segment.consolidated_count}")
+            info.append(f"Segment {i}: Level {segment.level}, Count {segment.consolidated_count}, Mass {segment.mass:.2f}")
         return info
     
     def draw(self, surface):
@@ -348,6 +378,7 @@ class Player:
                     (60, 179, 113),  # Level 1: Medium Sea Green  
                     (46, 125, 50),   # Level 2: Darker Green
                     (27, 94, 32),    # Level 3: Very Dark Green
+                    (20, 70, 25),    # Level 4: Extra Dark Green
                 ]
                 color = colors[min(current.level, len(colors) - 1)]
                 
@@ -357,7 +388,7 @@ class Player:
         for i, segment in enumerate(self.segments):
             joint_size = max(3, segment.thickness // 2)
             # Color joint based on level
-            joint_colors = [(20, 80, 20), (40, 100, 40), (60, 120, 60), (80, 140, 80)]
+            joint_colors = [(20, 80, 20), (40, 100, 40), (60, 120, 60), (80, 140, 80), (100, 160, 100)]
             joint_color = joint_colors[min(segment.level, len(joint_colors) - 1)]
             
             pygame.draw.circle(surface, joint_color, 
@@ -391,10 +422,14 @@ class Player:
         
         # Show segment counts by level
         level_counts = {}
+        level_masses = {}
         for segment in self.segments:
             level_counts[segment.level] = level_counts.get(segment.level, 0) + 1
+            if segment.level not in level_masses:
+                level_masses[segment.level] = segment.mass
         
         for level, count in sorted(level_counts.items()):
-            text = font.render(f"Level {level}: {count} segments", True, (255, 255, 255))
+            mass = level_masses[level]
+            text = font.render(f"Level {level}: {count} segments (mass: {mass:.1f})", True, (255, 255, 255))
             surface.blit(text, (10, y_offset))
             y_offset += 25
