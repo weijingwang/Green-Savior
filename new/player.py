@@ -1,4 +1,5 @@
 import pygame, os
+import numpy as np
 from pygame.math import Vector2
 from constants import *
 from utils import Animator
@@ -53,6 +54,7 @@ class Player:
         
         # Initialize with level 0 segments
         self.segments = []
+        self.segment_count = INITIAL_SEGMENTS
         start_x = self.base_rect.centerx
         start_y = self.base_rect.top + 50
         
@@ -208,10 +210,13 @@ class Player:
             new_segment = VineSegment(new_position, level=0)
             self.segments.append(new_segment)
             
-            # Print current segment count and pattern
-            pattern = "".join(str(s.level) for s in self.segments)
-            print(f"Segments: {len(self.segments)}, Pattern: {pattern}")
-            
+            levels = np.array([s.level for s in self.segments], dtype=int)
+            pattern = "".join(map(str, levels))
+            self.segment_count = np.sum(CONSOLIDATION_SEGMENTS ** levels)
+
+            print(f"Segments: {len(self.segments)}, Pattern: {pattern}", "Count:", self.segment_count)
+
+
             # Trigger consolidation check
             self.consolidate_segments()
             
@@ -373,12 +378,19 @@ class Player:
                 end_pos = (int(next_segment.position.x), int(next_segment.position.y))
                 
                 # Color varies by level
+                # colors = [
+                #     (34, 139, 34),   # Level 0: Forest Green
+                #     (60, 179, 113),  # Level 1: Medium Sea Green  
+                #     (46, 125, 50),   # Level 2: Darker Green
+                #     (27, 94, 32),    # Level 3: Very Dark Green
+                #     (20, 70, 25),    # Level 4: Extra Dark Green
+                # ]
                 colors = [
-                    (34, 139, 34),   # Level 0: Forest Green
-                    (60, 179, 113),  # Level 1: Medium Sea Green  
-                    (46, 125, 50),   # Level 2: Darker Green
-                    (27, 94, 32),    # Level 3: Very Dark Green
-                    (20, 70, 25),    # Level 4: Extra Dark Green
+                    (79, 149, 79),   # Level 0: Forest Green
+                    (75, 125, 69),  # Level 1: Medium Sea Green  
+                    (70, 101, 59),   # Level 2: Darker Green
+                    (66, 78, 50),    # Level 3: Very Dark Green
+                    (62, 54, 40),    # Level 4: Extra Dark Green
                 ]
                 color = colors[min(current.level, len(colors) - 1)]
                 

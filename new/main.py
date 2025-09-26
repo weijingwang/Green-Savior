@@ -13,9 +13,11 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 28, bold=True)
 
+player = Player(SCREEN_CENTER_X, GROUND_Y)
+
 running = True
 current_height = STARTING_HEIGHT # meters
-current_height_pixels = 320 # pixels
+current_height_pixels = 320 #player.length # pixels
 speed_x = STARTING_SPEED # meters/60s
 world_x = 0 # where you currently are in the world in meters
 pixels_per_meter = current_height_pixels / current_height
@@ -23,7 +25,6 @@ pixels_per_meter = current_height_pixels / current_height
 # Track space key press to avoid continuous addition
 space_pressed = False
 
-player = Player(SCREEN_CENTER_X, GROUND_Y)
 
 # Define object positions in world coordinates (meters from player)
 OBJECT_WORLD_POSITIONS = {
@@ -64,6 +65,7 @@ gun_obj = GameObject(
 mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse'], OBJECT_WORLD_POSITIONS['car'], OBJECT_WORLD_POSITIONS['boonies'], OBJECT_WORLD_POSITIONS['gun']
 
 while running:
+    print(player.segment_count)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
