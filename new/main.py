@@ -99,8 +99,8 @@ while running:
 
     player.update()
     player.update_scale(player.pixels_per_meter)
-    mouse_obj.update_scale(pixels_per_meter, GROUND_Y)
-    car_obj.update_scale(pixels_per_meter, GROUND_Y)
+    mouse_obj.update_scale(player.pixels_per_meter, GROUND_Y)
+    car_obj.update_scale(player.pixels_per_meter, GROUND_Y)
     # boonies_obj.update_scale(pixels_per_meter, GROUND_Y)
     # gun_obj.update_scale(pixels_per_meter, GROUND_Y)
 
