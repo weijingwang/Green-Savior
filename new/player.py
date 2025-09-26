@@ -292,7 +292,7 @@ class Player:
     
     def add_segment(self):
         """Add a new level 0 segment at the tip"""
-        if len(self.segments) < 20:  # Max segments limit
+        if len(self.segments) < MAX_SEGS_TO_HAVE:  # Max segments limit
             # Calculate position for new segment
             if self.segments:
                 last_segment = self.segments[-1]
