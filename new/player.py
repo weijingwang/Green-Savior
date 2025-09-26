@@ -76,19 +76,30 @@ class Player:
         # Initialize with level 0 segments
         self.segments = []
         self.segment_count = INITIAL_SEGMENTS
+        
+        # Calculate initial base connection point (store as offset from base center)
+        self.base_connection_offset = 50 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
+        
+        # Create initial segments
+        self._initialize_segments()
+        
+        # Head setup
+        self.head_rect = self.head_image.get_rect()
+        self.update_head_position()
+    
+    def _initialize_segments(self):
+        """Initialize segments with proper connection to base"""
         start_x = self.base_rect.centerx
-        start_y = self.base_rect.top + 50
+        start_y = self.base_rect.top + self.base_connection_offset
+        
+        # Store base position for reference
+        self.base_position = Vector2(start_x, start_y)
         
         # Create initial segments
         for i in range(INITIAL_SEGMENTS):
             position = Vector2(start_x, start_y - i * (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT))
             segment = VineSegment(position, level=0, pixels_per_meter=self.pixels_per_meter)
             self.segments.append(segment)
-        
-        # Head setup
-        self.head_rect = self.head_image.get_rect()
-        self.update_head_position()
-        self.base_position = Vector2(start_x, start_y)
     
     def update_scale(self, new_pixels_per_meter):
         """Update all scaling-related properties when pixels_per_meter changes"""
@@ -102,30 +113,59 @@ class Player:
         self.x *= scale_ratio
         self.y *= scale_ratio
         
-        # Scale base position
-        self.base_position *= scale_ratio
+        # Update base connection offset
+        self.base_connection_offset = 50 * (new_pixels_per_meter / INITIAL_PIXELS_PER_METER)
         
-        # Update all segments
+        # Update base rect and position
+        self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
+        new_base_x = self.base_rect.centerx
+        new_base_y = self.base_rect.top + self.base_connection_offset
+        
+        # Calculate the offset needed to maintain proper connection
+        old_base_position = Vector2(self.base_position)
+        new_base_position = Vector2(new_base_x, new_base_y)
+        position_offset = new_base_position - old_base_position * scale_ratio
+        
+        # Update all segments with scale and position correction
         for segment in self.segments:
+            # First apply the scale
             segment.update_scale(new_pixels_per_meter)
+            # Then apply the position correction to maintain base connection
+            segment.position += position_offset
+            segment.old_position += position_offset
+        
+        # Update base position
+        self.base_position = new_base_position
         
         # Update physics properties that should scale
         self.gravity = self.base_gravity * (new_pixels_per_meter / INITIAL_PIXELS_PER_METER)
         self.mouse_strength = self.base_mouse_strength * (new_pixels_per_meter / INITIAL_PIXELS_PER_METER)
         
-        # Update base and head images (these will be handled in the update methods with animator.change_scale)
-        # The animator and head image scaling will be handled in update() method
+        # Ensure first segment is properly connected to base
+        if self.segments:
+            self.segments[0].position = Vector2(self.base_position)
+            self.segments[0].old_position = Vector2(self.base_position)
+        
+        # Update the animator's scale
+        self.animator.change_scale = True
     
     @property
     def gravity(self):
-        """Scaled gravity property"""
         return self.base_gravity * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
-    
-    @property 
+
+    @gravity.setter
+    def gravity(self, value):
+        # Back-calculate pixels_per_meter if someone assigns directly
+        self.pixels_per_meter = (value / self.base_gravity) * INITIAL_PIXELS_PER_METER
+
+    @property
     def mouse_strength(self):
-        """Scaled mouse strength property"""
         return self.base_mouse_strength * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
-    
+
+    @mouse_strength.setter
+    def mouse_strength(self, value):
+        self.pixels_per_meter = (value / self.base_mouse_strength) * INITIAL_PIXELS_PER_METER
+
     def can_consolidate_at_level(self, level):
         """Check if we can consolidate segments at a specific level"""
         level_segments = [s for s in self.segments if s.level == level]
@@ -394,15 +434,19 @@ class Player:
         """Update base position and propagate to first segment"""
         self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
 
-        new_base = Vector2(self.base_rect.centerx, self.base_rect.top + 50 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER))
-        offset = new_base - self.base_position
+        # Calculate new base connection point
+        new_base = Vector2(self.base_rect.centerx, self.base_rect.top + self.base_connection_offset)
         
-        # Move all segments by offset
-        for segment in self.segments:
-            segment.position += offset
-            segment.old_position += offset
-        
-        self.base_position = new_base
+        # Only update if there's actually a change
+        if self.base_position.distance_to(new_base) > 0.1:  # Small threshold to avoid micro-movements
+            offset = new_base - self.base_position
+            
+            # Move all segments by offset
+            for segment in self.segments:
+                segment.position += offset
+                segment.old_position += offset
+            
+            self.base_position = new_base
     
     def update(self):
         # Update base animation
