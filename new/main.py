@@ -58,6 +58,8 @@ gun_obj = GameObject(
     ground_y=GROUND_Y
 )
 
+mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse'], OBJECT_WORLD_POSITIONS['car'], OBJECT_WORLD_POSITIONS['boonies'], OBJECT_WORLD_POSITIONS['gun']
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -85,10 +87,10 @@ while running:
     )
 
     # Draw objects using world coordinates converted to screen coordinates
-    gun_screen_x = world_to_screen_x(OBJECT_WORLD_POSITIONS['gun'], pixels_per_meter)
-    boonies_screen_x = world_to_screen_x(OBJECT_WORLD_POSITIONS['boonies'], pixels_per_meter)
-    car_screen_x = world_to_screen_x(OBJECT_WORLD_POSITIONS['car'], pixels_per_meter)
-    mouse_screen_x = world_to_screen_x(OBJECT_WORLD_POSITIONS['mouse'], pixels_per_meter)
+    gun_screen_x = world_to_screen_x(gun_x, pixels_per_meter)
+    boonies_screen_x = world_to_screen_x(boonies_x, pixels_per_meter)
+    car_screen_x = world_to_screen_x(car_x, pixels_per_meter)
+    mouse_screen_x = world_to_screen_x(mouse_x, pixels_per_meter)
 
     # Only draw objects that are visible on screen
     if 0 <= gun_screen_x <= SCREEN_WIDTH:
@@ -115,6 +117,10 @@ while running:
 
     pygame.display.flip()
 
-    world_x += STARTING_SPEED
+    world_x += STARTING_SPEED 
+
+    # [FIX] I dont want to change the world x axis positions meters of my objects. I just want to set them relative to my moving plant
+    mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse']-world_x, OBJECT_WORLD_POSITIONS['car']-world_x, OBJECT_WORLD_POSITIONS['boonies']-world_x, OBJECT_WORLD_POSITIONS['gun']-world_x
+
     clock.tick(60)
     # print(f"FPS: {clock.get_fps():.2f}")
