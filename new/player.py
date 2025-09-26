@@ -9,6 +9,7 @@ class VineSegment:
     def __init__(self, position, level=0, consolidated_count=1, pixels_per_meter=INITIAL_PIXELS_PER_METER):
         self.position = Vector2(position)
         self.old_position = Vector2(position)
+        self.pixels_per_meter = pixels_per_meter
         self.level = level  # 0 = base level, 1 = first consolidation, etc.
         self.consolidated_count = consolidated_count  # How many original segments this represents
         self.length = pixels_per_meter * PLANT_SEGMENT_HEIGHT * consolidated_count  # Scaled length
