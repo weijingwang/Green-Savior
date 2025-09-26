@@ -17,7 +17,7 @@ player = Player(SCREEN_CENTER_X, GROUND_Y)
 
 running = True
 current_height = STARTING_HEIGHT # meters
-current_height_pixels = 320 #player.length # pixels
+current_height_pixels = INITIAL_SEGMENTS * PLANT_SEGMENT_HEIGHT_PIXELS # pixels
 speed_x = STARTING_SPEED # meters/60s
 world_x = 0 # where you currently are in the world in meters
 pixels_per_meter = current_height_pixels / current_height
@@ -65,7 +65,7 @@ gun_obj = GameObject(
 mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse'], OBJECT_WORLD_POSITIONS['car'], OBJECT_WORLD_POSITIONS['boonies'], OBJECT_WORLD_POSITIONS['gun']
 
 while running:
-    print(player.segment_count)
+    print(current_height, current_height_pixels)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -80,8 +80,13 @@ while running:
             if event.key == pygame.K_SPACE:
                 space_pressed = False
 
+    # Update height in pixels for zoom
+    current_height_pixels = player.segment_count * PLANT_SEGMENT_HEIGHT_PIXELS # pixels
+
     # Update pixels_per_meter based on current height
-    pixels_per_meter = current_height_pixels / current_height
+    # pixels_per_meter = current_height_pixels / current_height
+    pixels_per_meter = INITIAL_SEGMENTS * PLANT_SEGMENT_HEIGHT_PIXELS / current_height
+
 
     player.update()
     mouse_obj.update_scale(pixels_per_meter, GROUND_Y)
