@@ -89,6 +89,13 @@ class Player:
         self.head_rect = self.head_image.get_rect()
         self.update_head_position()
         print(self.head_rect)
+
+        # walk movement [TODO] if have time
+        # self.walk_timer += 0.05
+        # self.step_phase = (np.sin(self.walk_timer)+1)/2
+        # if self.step_phase>0.3: torso_y = base_y - self.step_phase*20
+        # else: torso_y = self.base_y - 14 + np.sin(self.walk_timer*12)*6
+        # # torso_x = base_x + math.sin(walk_timer*0.5)*15
     
     def _initialize_segments(self):
         """Initialize segments with proper connection to base"""
