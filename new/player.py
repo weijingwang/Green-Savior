@@ -16,11 +16,28 @@ class VineSegment:
         self.thickness = self.calculate_thickness()
         self.mass = self.calculate_mass()  # New: mass affects physics
     
+    def update_scale(self, new_pixels_per_meter):
+        """Update segment properties when scale changes"""
+        old_pixels_per_meter = self.pixels_per_meter
+        scale_ratio = new_pixels_per_meter / old_pixels_per_meter
+        
+        # Update pixels_per_meter
+        self.pixels_per_meter = new_pixels_per_meter
+        
+        # Scale positions
+        self.position *= scale_ratio
+        self.old_position *= scale_ratio
+        
+        # Recalculate length and thickness with new scale
+        self.length = new_pixels_per_meter * PLANT_SEGMENT_HEIGHT * self.consolidated_count
+        self.thickness = self.calculate_thickness()
+        # Note: mass doesn't change with scale, it's based on level/count only
+    
     def calculate_thickness(self):
-        """Calculate thickness based on level and position in chain"""
-        base_thickness = 12
+        """Calculate thickness based on level and current scale"""
+        base_thickness = 12 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)  # Scale with pixels_per_meter
         level_multiplier = 1.5 ** self.level  # Thicker for higher levels
-        return max(4, int(base_thickness * level_multiplier))
+        return max(2, int(base_thickness * level_multiplier))  # Minimum thickness of 2
     
     def calculate_mass(self):
         """Calculate mass based on level - higher levels are much heavier"""
@@ -50,11 +67,11 @@ class Player:
         ).convert_alpha()
         self.head_image = pygame.transform.scale(self.head_image, (self.pixels_per_meter * PLANT_HEAD_W, self.pixels_per_meter * PLANT_HEAD_H))
         
-        # Physics properties
-        self.gravity = 0.2
-        self.mouse_strength = 0.04
+        # Physics properties - these should scale with pixels_per_meter
+        self.base_gravity = 0.2
+        self.base_mouse_strength = 0.04
         self.constraint_iterations = 3
-        self.damping = 0.98  # New: damping factor to simulate air resistance
+        self.damping = 0.98  # This doesn't need scaling
         
         # Initialize with level 0 segments
         self.segments = []
@@ -72,6 +89,42 @@ class Player:
         self.head_rect = self.head_image.get_rect()
         self.update_head_position()
         self.base_position = Vector2(start_x, start_y)
+    
+    def update_scale(self, new_pixels_per_meter):
+        """Update all scaling-related properties when pixels_per_meter changes"""
+        old_pixels_per_meter = self.pixels_per_meter
+        scale_ratio = new_pixels_per_meter / old_pixels_per_meter
+        
+        # Update player's pixels_per_meter
+        self.pixels_per_meter = new_pixels_per_meter
+        
+        # Scale player position
+        self.x *= scale_ratio
+        self.y *= scale_ratio
+        
+        # Scale base position
+        self.base_position *= scale_ratio
+        
+        # Update all segments
+        for segment in self.segments:
+            segment.update_scale(new_pixels_per_meter)
+        
+        # Update physics properties that should scale
+        self.gravity = self.base_gravity * (new_pixels_per_meter / INITIAL_PIXELS_PER_METER)
+        self.mouse_strength = self.base_mouse_strength * (new_pixels_per_meter / INITIAL_PIXELS_PER_METER)
+        
+        # Update base and head images (these will be handled in the update methods with animator.change_scale)
+        # The animator and head image scaling will be handled in update() method
+    
+    @property
+    def gravity(self):
+        """Scaled gravity property"""
+        return self.base_gravity * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
+    
+    @property 
+    def mouse_strength(self):
+        """Scaled mouse strength property"""
+        return self.base_mouse_strength * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
     
     def can_consolidate_at_level(self, level):
         """Check if we can consolidate segments at a specific level"""
@@ -211,7 +264,7 @@ class Player:
             else:
                 new_position = Vector2(self.base_position.x, self.base_position.y - (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT))
             
-            # Create new segment
+            # Create new segment with current scale
             new_segment = VineSegment(new_position, level=0, pixels_per_meter=self.pixels_per_meter)
             self.segments.append(new_segment)
             
@@ -220,7 +273,6 @@ class Player:
             self.segment_count = np.sum(CONSOLIDATION_SEGMENTS ** levels)
 
             print(f"Segments: {len(self.segments)}, Pattern: {pattern}", "Count:", self.segment_count)
-
 
             # Trigger consolidation check
             self.consolidate_segments()
@@ -259,7 +311,7 @@ class Player:
                 velocity += mouse_acceleration
             
             # Limit velocity to prevent instability (especially important for light segments)
-            max_velocity = 10.0 / (segment.mass ** 0.3)  # Lighter segments can move faster
+            max_velocity = 10.0 / (segment.mass ** 0.3) * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
             if velocity.length() > max_velocity:
                 velocity = velocity.normalize() * max_velocity
             
@@ -336,14 +388,13 @@ class Player:
 
         if self.segments:
             last_segment = self.segments[-1]
-            # self.head_rect.midbottom = (int(last_segment.position.x), int(last_segment.position.y))
             self.head_rect = self.head_image.get_rect(midbottom=(int(last_segment.position.x), int(last_segment.position.y)))
 
     def update_base_position(self):
         """Update base position and propagate to first segment"""
         self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
 
-        new_base = Vector2(self.base_rect.centerx, self.base_rect.top + 50)
+        new_base = Vector2(self.base_rect.centerx, self.base_rect.top + 50 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER))
         offset = new_base - self.base_position
         
         # Move all segments by offset
@@ -390,13 +441,6 @@ class Player:
                 end_pos = (int(next_segment.position.x), int(next_segment.position.y))
                 
                 # Color varies by level
-                # colors = [
-                #     (34, 139, 34),   # Level 0: Forest Green
-                #     (60, 179, 113),  # Level 1: Medium Sea Green  
-                #     (46, 125, 50),   # Level 2: Darker Green
-                #     (27, 94, 32),    # Level 3: Very Dark Green
-                #     (20, 70, 25),    # Level 4: Extra Dark Green
-                # ]
                 colors = [
                     (79, 149, 79),   # Level 0: Forest Green
                     (75, 125, 69),  # Level 1: Medium Sea Green  
@@ -410,7 +454,7 @@ class Player:
         
         # Draw segment joints with level indicators
         for i, segment in enumerate(self.segments):
-            joint_size = max(3, segment.thickness // 2)
+            joint_size = max(2, int(segment.thickness // 2 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)))
             # Color joint based on level
             joint_colors = [(20, 80, 20), (40, 100, 40), (60, 120, 60), (80, 140, 80), (100, 160, 100)]
             joint_color = joint_colors[min(segment.level, len(joint_colors) - 1)]
@@ -418,15 +462,15 @@ class Player:
             pygame.draw.circle(surface, joint_color, 
                              (int(segment.position.x), int(segment.position.y)), joint_size)
             
-            # Draw level number for debugging
+            # Draw level number for debugging (scaled font)
             if segment.level > 0:
-                font = pygame.font.Font(None, 20)
+                font_size = max(12, int(20 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)))
+                font = pygame.font.Font(None, font_size)
                 text = font.render(str(segment.level), True, (255, 255, 255))
                 surface.blit(text, (int(segment.position.x) - 5, int(segment.position.y) - 10))
 
         # Draw base scaled in update base scale
         surface.blit(self.base_image, self.base_rect)
-
 
         # Draw head
         surface.blit(self.head_image, self.head_rect)
@@ -434,7 +478,8 @@ class Player:
     def draw_debug_info(self, surface):
         """Draw debug information about current segment structure"""
         y_offset = 10
-        font = pygame.font.Font(None, 24)
+        font_size = max(16, int(24 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)))
+        font = pygame.font.Font(None, font_size)
         
         # Show segment pattern
         pattern = ""
@@ -443,7 +488,7 @@ class Player:
         
         text = font.render(f"Pattern: {pattern}", True, (255, 255, 255))
         surface.blit(text, (10, y_offset))
-        y_offset += 25
+        y_offset += int(25 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER))
         
         # Show segment counts by level
         level_counts = {}
@@ -457,4 +502,4 @@ class Player:
             mass = level_masses[level]
             text = font.render(f"Level {level}: {count} segments (mass: {mass:.1f})", True, (255, 255, 255))
             surface.blit(text, (10, y_offset))
-            y_offset += 25
+            y_offset += int(25 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER))
