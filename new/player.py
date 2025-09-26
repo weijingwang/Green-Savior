@@ -54,7 +54,7 @@ class Player:
         self.x, self.y = x, y
 
         self.pixels_per_meter = INITIAL_PIXELS_PER_METER
-
+        self.target_pixels_per_meter = INITIAL_PIXELS_PER_METER      
         # Plant base setup (unchanged)
         base_paths = [os.path.join(image_folder, f"base/base{i}.png") for i in range(1, 19)]
         self.animator = Animator(base_paths, scale=(self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE), frame_duration=5)
@@ -62,10 +62,12 @@ class Player:
         self.base_rect = self.base_image.get_rect(center=(x, y))
         
         # Plant head setup (unchanged)
-        self.head_image = pygame.image.load(
+        self.og_head_image = pygame.image.load(
             os.path.join(image_folder, "head.png")
         ).convert_alpha()
-        self.head_image = pygame.transform.scale(self.head_image, (self.pixels_per_meter * PLANT_HEAD_W, self.pixels_per_meter * PLANT_HEAD_H))
+        self.og_head_rect = self.og_head_image.get_rect()
+
+        self.head_image = pygame.transform.scale(self.og_head_image, (int(self.pixels_per_meter * PLANT_HEAD_W), int(self.pixels_per_meter * PLANT_HEAD_H)))
         
         # Physics properties - these should scale with pixels_per_meter
         self.base_gravity = 0.2
@@ -86,6 +88,7 @@ class Player:
         # Head setup
         self.head_rect = self.head_image.get_rect()
         self.update_head_position()
+        print(self.head_rect)
     
     def _initialize_segments(self):
         """Initialize segments with proper connection to base"""
@@ -423,7 +426,8 @@ class Player:
     def update_head_position(self):
         """Update head position based on last segment"""
         if self.animator.change_scale:
-            self.head_image = pygame.transform.scale(self.head_image, (self.pixels_per_meter * PLANT_HEAD_W, self.pixels_per_meter * PLANT_HEAD_H))
+            factor = self.pixels_per_meter
+            self.head_image = pygame.transform.scale(self.og_head_image, (factor * PLANT_HEAD_W + 27, factor * PLANT_HEAD_H + 10))
             self.head_rect = self.head_image.get_rect()
 
         if self.segments:

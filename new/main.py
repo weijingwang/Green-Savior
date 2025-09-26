@@ -3,7 +3,7 @@ import pygame, os
 from constants import *
 from player import Player
 from game_object import GameObject
-from utils import world_to_screen_x
+from utils import world_to_screen_x, incremental_add
 
 pygame.mixer.init()
 pygame.init()
@@ -24,6 +24,7 @@ current_height_pixels = INITIAL_SEGMENTS * INITIAL_PIXELS_PER_METER * PLANT_SEGM
 speed_x = STARTING_SPEED # meters/60s
 world_x = 0 # where you currently are in the world in meters
 pixels_per_meter = current_height_pixels / current_height
+target_pixels_per_meter = pixels_per_meter
 
 # Track space key press to avoid continuous addition
 space_pressed = False
@@ -67,8 +68,10 @@ gun_obj = GameObject(
 
 mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse'], OBJECT_WORLD_POSITIONS['car'], OBJECT_WORLD_POSITIONS['boonies'], OBJECT_WORLD_POSITIONS['gun']
 
+
+
 while running:
-    print(player.base_rect.center)
+    print(player.pixels_per_meter, player.target_pixels_per_meter)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -88,8 +91,10 @@ while running:
 
     # Update pixels_per_meter based on current height
     # pixels_per_meter = current_height_pixels / current_height
-    player.pixels_per_meter = (GROUND_Y - MAX_PLANT_Y) / (player.segment_count * PLANT_SEGMENT_HEIGHT)
-    pixels_per_meter = INITIAL_SEGMENTS * (player.pixels_per_meter * PLANT_SEGMENT_HEIGHT) / current_height
+    player.target_pixels_per_meter = (GROUND_Y - MAX_PLANT_Y) / (player.segment_count * PLANT_SEGMENT_HEIGHT)
+    target_pixels_per_meter = INITIAL_SEGMENTS * (player.pixels_per_meter * PLANT_SEGMENT_HEIGHT) / current_height
+    player.pixels_per_meter = incremental_add(player.pixels_per_meter, player.target_pixels_per_meter)
+    pixels_per_meter = incremental_add(pixels_per_meter, target_pixels_per_meter)
 
 
     player.update()
