@@ -1,6 +1,8 @@
 import pygame
 from constants import HEIGHT_TO_REMOVE_OBJECT
 
+
+
 class GameObject(pygame.sprite.Sprite):
     def __init__(self, image_path, height_meters, pixels_per_meter, ground_y):
         """
@@ -57,4 +59,6 @@ class GameObject(pygame.sprite.Sprite):
         """Draw the sprite at a given x-position."""
         if self.rect and self.image_scaled:
             self.rect.x = x_position
+            pygame.draw.rect(screen, (255, 0, 255), self.rect, 2)  # 2 = line thickness
             screen.blit(self.image_scaled, self.rect)
+
