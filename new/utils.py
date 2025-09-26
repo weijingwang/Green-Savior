@@ -1,6 +1,11 @@
 # utils.py
 
 import pygame
+from constants import *
+
+def world_to_screen_x(world_pos_meters, pixels_per_meter):
+    """Convert world position (in meters) to screen x coordinate"""
+    return SCREEN_CENTER_X + (world_pos_meters * pixels_per_meter)
 
 class Animator:
     def __init__(self, image_paths, scale=(64, 64), frame_duration=5):
