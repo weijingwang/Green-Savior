@@ -28,7 +28,7 @@ class Player:
         
         # Chain physics properties
         self.gravity = 0.2  # Downward force
-        self.mouse_strength = 0.1  # How strongly mouse pulls the head
+        self.mouse_strength = 0.04  # How strongly mouse pulls the head
         self.constraint_iterations = 3  # How many times to enforce constraints
         
         # Initialize neck segments
