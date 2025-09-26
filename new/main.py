@@ -13,6 +13,9 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 28, bold=True)
 
+sky_img = pygame.image.load(os.path.join("assets/images", "sky.png")).convert_alpha()
+ground_img = pygame.image.load(os.path.join("assets/images", "ground.png")).convert_alpha()
+
 player = Player(SCREEN_CENTER_X, GROUND_Y)
 
 running = True
@@ -97,9 +100,11 @@ while running:
     # gun_obj.update_scale(pixels_per_meter, GROUND_Y)
 
     screen.fill((169, 173, 159)) # day sky
-    pygame.draw.rect(screen,(69, 65, 52),  # ground color
-        pygame.Rect(0, GROUND_Y, SCREEN_WIDTH, SCREEN_HEIGHT - GROUND_Y)
-    )
+    # pygame.draw.rect(screen,(69, 65, 52),  # ground color
+    #     pygame.Rect(0, GROUND_Y, SCREEN_WIDTH, SCREEN_HEIGHT - GROUND_Y)
+    # )
+    screen.blit(sky_img, (0, 0))
+    screen.blit(ground_img, (0, GROUND_Y))
 
     # Draw objects using world coordinates converted to screen coordinates
     # gun_screen_x = world_to_screen_x(gun_x, pixels_per_meter)
