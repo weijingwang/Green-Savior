@@ -1,0 +1,40 @@
+# constants.py
+
+SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
+SCREEN_CENTER_X, SCREEN_CENTER_Y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
+FPS = 60
+
+GROUND_Y = 3 * (SCREEN_HEIGHT // 4)
+
+PLANT_BASE_SIZE = (180, 180)
+PLANT_HEAD_SIZE = (80, 80)
+PLANT_INITIAL_SEGMENTS = 5
+PLANT_SEGMENT_HEIGHT = 0.05 # meters
+
+# calculate current height by the length of plant neck
+STARTING_HEIGHT = PLANT_INITIAL_SEGMENTS * PLANT_SEGMENT_HEIGHT  # 0.25 meters: size of rat
+
+# formula for speed is:
+"""
+0.4 * current height / FPS
+"""
+STARTING_SPEED = (PLANT_SEGMENT_HEIGHT * 2.0) / FPS # meters/ 60s
+SPEED_FALLOFF_PARAM = 0.001
+
+# Heights for my objects in meters
+COCKROACH_HEIGHT = 0.025 # meters
+MOUSE_HEIGHT = 0.05 # meters
+CAR_HEIGHT = 1.5 # meters
+PERSON_HEIGHT = 1.7 # meters
+BOONIES_HEIGHT = 10 # meters
+GUN_BUILDING_HEIGHT = 25 # meters
+BONE_TOWER_HEIGHT = 75 # meters
+SKYCRAPER_HEIGHT = 150 # meters
+SUPERSCRAPER_HEIGHT = 1000 # meters
+EVEREST_HEIGHT = 8848 # meters
+NO_CLOUDS_HEIGHT = 10000 # meters
+DARK_SKY_HEIGHT = 30000 # meters
+SPACE_HEIGHT = 100000 # meters
+
+
+
