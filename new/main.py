@@ -15,10 +15,13 @@ font = pygame.font.SysFont("Arial", 28, bold=True)
 
 running = True
 current_height = STARTING_HEIGHT # meters
-current_height_pixels = 320 # pixels [TODO] NEED THE NECK FIRST
+current_height_pixels = 320 # pixels
 speed_x = STARTING_SPEED # meters/60s
 world_x = 0 # where you currently are in the world in meters
-pixels_per_meter=current_height_pixels / current_height
+pixels_per_meter = current_height_pixels / current_height
+
+# Track space key press to avoid continuous addition
+space_pressed = False
 
 player = Player(SCREEN_CENTER_X, GROUND_Y)
 
@@ -64,13 +67,16 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
-    # check key hold state outside event loop
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_SPACE]: # [TODO] for increase neck segments by 1
-        current_height += PLANT_SEGMENT_HEIGHT
-        speed_x = (0.4 * current_height / FPS) * (1 / (1 + SPEED_FALLOFF_PARAM * current_height))
-        # print(current_height, "meters")
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE and not space_pressed:
+                space_pressed = True
+                # Add neck segment
+                player.add_neck_segment()
+                current_height += PLANT_SEGMENT_HEIGHT
+                speed_x = (0.4 * current_height / FPS) * (1 / (1 + SPEED_FALLOFF_PARAM * current_height))
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_SPACE:
+                space_pressed = False
 
     # Update pixels_per_meter based on current height
     pixels_per_meter = current_height_pixels / current_height
@@ -81,8 +87,8 @@ while running:
     boonies_obj.update_scale(pixels_per_meter, GROUND_Y)
     gun_obj.update_scale(pixels_per_meter, GROUND_Y)
 
-    screen.fill((50, 100, 255))
-    pygame.draw.rect(screen,(100, 200, 100),  # color (greenish example)
+    screen.fill((169, 173, 159)) # day sky
+    pygame.draw.rect(screen,(69, 65, 52),  # ground color
         pygame.Rect(0, GROUND_Y, SCREEN_WIDTH, SCREEN_HEIGHT - GROUND_Y)
     )
 
@@ -109,18 +115,19 @@ while running:
     world_x_text = font.render(f"World_x: {world_x:.2f} m", True, (255, 255, 255))
     speed_x_text = font.render(f"speed_x: {speed_x*FPS:.2f} m/s", True, (255, 255, 255))
     pixels_per_meter_text = font.render(f"pixels/m: {pixels_per_meter:.2f}", True, (255, 255, 255))
+    segments_text = font.render(f"Neck segments: {player.segment_count}", True, (255, 255, 255))
     
-    screen.blit(height_text, (10, 10))  # top-left corner
-    screen.blit(world_x_text, (10, 40))  # top-left corner
-    screen.blit(speed_x_text, (10, 70))  # top-left corner
-    screen.blit(pixels_per_meter_text, (10, 100))  # top-left corner
+    screen.blit(height_text, (10, 10))
+    screen.blit(world_x_text, (10, 40))
+    screen.blit(speed_x_text, (10, 70))
+    screen.blit(pixels_per_meter_text, (10, 100))
+    screen.blit(segments_text, (10, 130))
 
     pygame.display.flip()
 
     world_x += STARTING_SPEED 
 
-    # [FIX] I dont want to change the world x axis positions meters of my objects. I just want to set them relative to my moving plant
+    # Update object positions relative to moving plant
     mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse']-world_x, OBJECT_WORLD_POSITIONS['car']-world_x, OBJECT_WORLD_POSITIONS['boonies']-world_x, OBJECT_WORLD_POSITIONS['gun']-world_x
 
     clock.tick(60)
-    # print(f"FPS: {clock.get_fps():.2f}")
