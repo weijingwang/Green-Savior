@@ -3,6 +3,7 @@
 import pygame, os
 from constants import *
 from utils import Animator
+from game_object import GameObject
 
 pygame.mixer.init()
 pygame.init()
@@ -61,12 +62,44 @@ class Player:
 
 
 
-player = Player(SCREEN_CENTER_X, GROUND_Y)
+
 
 running = True
-current_height = STARTING_HEIGHT
-speed_x = STARTING_SPEED
+current_height = STARTING_HEIGHT # meters
+current_height_pixels = 320 # pixels [TODO] NEED THE NECK FIRST
+speed_x = STARTING_SPEED # meters/60s
 world_x = 0 # where you currently are in the world in meters
+pixels_per_meter=current_height_pixels / current_height
+
+player = Player(SCREEN_CENTER_X, GROUND_Y)
+
+mouse_obj = GameObject(
+    image_path=os.path.join("assets/images/objects", "mouse.png"),
+    height_meters=MOUSE_HEIGHT,
+    pixels_per_meter=pixels_per_meter,
+    ground_y=GROUND_Y
+)
+
+car_obj = GameObject(
+    image_path=os.path.join("assets/images/objects", "car.png"),
+    height_meters=CAR_HEIGHT,
+    pixels_per_meter=pixels_per_meter,
+    ground_y=GROUND_Y
+)
+
+boonies_obj = GameObject(
+    image_path=os.path.join("assets/images/objects", "boonies.png"),
+    height_meters=BOONIES_HEIGHT,
+    pixels_per_meter=pixels_per_meter,
+    ground_y=GROUND_Y
+)
+
+gun_obj = GameObject(
+    image_path=os.path.join("assets/images/objects", "gun_building.png"),
+    height_meters=GUN_BUILDING_HEIGHT,
+    pixels_per_meter=pixels_per_meter,
+    ground_y=GROUND_Y
+)
 
 while running:
     for event in pygame.event.get():
@@ -78,14 +111,29 @@ while running:
     if keys[pygame.K_SPACE]: # [TODO] for increase neck segments by 1
         current_height += PLANT_SEGMENT_HEIGHT
         speed_x = (0.4 * current_height / FPS) * (1 / (1 + SPEED_FALLOFF_PARAM * current_height))
-        print(current_height, "meters")
+        # print(current_height, "meters")
 
     player.update()
+    mouse_obj.update_scale(pixels_per_meter, GROUND_Y)
+    car_obj.update_scale(pixels_per_meter, GROUND_Y)
+    boonies_obj.update_scale(pixels_per_meter, GROUND_Y)
+    gun_obj.update_scale(pixels_per_meter, GROUND_Y)
+
+
+
+
 
     screen.fill((50, 100, 255))
     pygame.draw.rect(screen,(100, 200, 100),  # color (greenish example)
         pygame.Rect(0, GROUND_Y, SCREEN_WIDTH, SCREEN_HEIGHT - GROUND_Y)
     )
+
+    gun_obj.draw(screen, SCREEN_CENTER_X + 500)
+    boonies_obj.draw(screen, SCREEN_CENTER_X + 300)
+    car_obj.draw(screen, SCREEN_CENTER_X + 100)
+    mouse_obj.draw(screen, SCREEN_CENTER_X - 400)
+
+
     player.draw(screen)
 
     # UI
@@ -101,6 +149,7 @@ while running:
     pygame.display.flip()
 
     world_x += STARTING_SPEED
+    pixels_per_meter=current_height_pixels / current_height
 
     clock.tick(60)
-    print(f"FPS: {clock.get_fps():.2f}")
+    # print(f"FPS: {clock.get_fps():.2f}")
