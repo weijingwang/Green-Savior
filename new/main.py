@@ -17,7 +17,7 @@ player = Player(SCREEN_CENTER_X, GROUND_Y)
 
 running = True
 current_height = STARTING_HEIGHT # meters
-current_height_pixels = INITIAL_SEGMENTS * PLANT_SEGMENT_HEIGHT_PIXELS # pixels
+current_height_pixels = INITIAL_SEGMENTS * INITIAL_PIXELS_PER_METER * PLANT_SEGMENT_HEIGHT # pixels
 speed_x = STARTING_SPEED # meters/60s
 world_x = 0 # where you currently are in the world in meters
 pixels_per_meter = current_height_pixels / current_height
@@ -81,11 +81,11 @@ while running:
                 space_pressed = False
 
     # Update height in pixels for zoom
-    current_height_pixels = player.segment_count * PLANT_SEGMENT_HEIGHT_PIXELS # pixels
+    current_height_pixels = player.segment_count * (player.pixels_per_meter * PLANT_SEGMENT_HEIGHT) # pixels
 
     # Update pixels_per_meter based on current height
     # pixels_per_meter = current_height_pixels / current_height
-    pixels_per_meter = INITIAL_SEGMENTS * PLANT_SEGMENT_HEIGHT_PIXELS / current_height
+    pixels_per_meter = INITIAL_SEGMENTS * (player.pixels_per_meter * PLANT_SEGMENT_HEIGHT) / current_height
 
 
     player.update()

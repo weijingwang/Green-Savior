@@ -6,12 +6,12 @@ from utils import Animator
 
 class VineSegment:
     """Represents a segment at any consolidation level"""
-    def __init__(self, position, level=0, consolidated_count=1):
+    def __init__(self, position, level=0, consolidated_count=1, pixels_per_meter=INITIAL_PIXELS_PER_METER):
         self.position = Vector2(position)
         self.old_position = Vector2(position)
         self.level = level  # 0 = base level, 1 = first consolidation, etc.
         self.consolidated_count = consolidated_count  # How many original segments this represents
-        self.length = PLANT_SEGMENT_HEIGHT_PIXELS * consolidated_count  # Scaled length
+        self.length = pixels_per_meter * PLANT_SEGMENT_HEIGHT * consolidated_count  # Scaled length
         self.thickness = self.calculate_thickness()
         self.mass = self.calculate_mass()  # New: mass affects physics
     
@@ -33,6 +33,7 @@ class Player:
         """
         Enhanced Player class with segment consolidation and mass-based physics
         """
+        self.pixels_per_meter = INITIAL_PIXELS_PER_METER
 
         # Plant base setup (unchanged)
         base_paths = [os.path.join(image_folder, f"base/base{i}.png") for i in range(1, 19)]
@@ -60,7 +61,7 @@ class Player:
         
         # Create initial segments
         for i in range(INITIAL_SEGMENTS):
-            position = Vector2(start_x, start_y - i * PLANT_SEGMENT_HEIGHT_PIXELS)
+            position = Vector2(start_x, start_y - i * (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT))
             segment = VineSegment(position, level=0)
             self.segments.append(segment)
         
@@ -202,9 +203,9 @@ class Player:
                 if len(self.segments) > 1:
                     direction = (last_segment.position - self.segments[-2].position).normalize()
                 
-                new_position = last_segment.position + direction * PLANT_SEGMENT_HEIGHT_PIXELS
+                new_position = last_segment.position + direction * (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT)
             else:
-                new_position = Vector2(self.base_position.x, self.base_position.y - PLANT_SEGMENT_HEIGHT_PIXELS)
+                new_position = Vector2(self.base_position.x, self.base_position.y - (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT))
             
             # Create new segment
             new_segment = VineSegment(new_position, level=0)
