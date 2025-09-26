@@ -329,10 +329,15 @@ class Player:
     
     def update_head_position(self):
         """Update head position based on last segment"""
+        if self.animator.change_scale:
+            self.head_image = pygame.transform.scale(self.head_image, (self.pixels_per_meter * PLANT_HEAD_W, self.pixels_per_meter * PLANT_HEAD_H))
+            self.head_rect = self.head_image.get_rect()
+
         if self.segments:
             last_segment = self.segments[-1]
-            self.head_rect.midbottom = (int(last_segment.position.x), int(last_segment.position.y))
-    
+            # self.head_rect.midbottom = (int(last_segment.position.x), int(last_segment.position.y))
+            self.head_rect = self.head_image.get_rect(midbottom=(int(last_segment.position.x), int(last_segment.position.y)))
+
     def update_base_position(self):
         """Update base position and propagate to first segment"""
         self.base_rect = self.base_image.get_rect(center=(self.x, self.y))

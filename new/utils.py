@@ -21,10 +21,12 @@ class Animator:
         self.frame_duration = frame_duration
         self.current_frame = 0
         self.counter = 0
+        self.change_scale = False
 
     def get_image(self, scale=(64, 64)):
         """Return the current frame image, advancing animation as needed."""
-        if (scale != self.scale):
+        self.change_scale = (scale != self.scale)
+        if (self.change_scale):
             self.frames = [pygame.transform.scale(pygame.image.load(p).convert_alpha(), scale) 
                         for p in self.image_paths]
         self.counter += 1
