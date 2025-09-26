@@ -37,7 +37,7 @@ class Player:
 
         # Plant base setup (unchanged)
         base_paths = [os.path.join(image_folder, f"base/base{i}.png") for i in range(1, 19)]
-        self.animator = Animator(base_paths, scale=PLANT_BASE_SIZE, frame_duration=5)
+        self.animator = Animator(base_paths, scale=(self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE), frame_duration=5)
         self.base_image = self.animator.get_image()
         self.base_rect = self.base_image.get_rect(center=(x, y))
         
@@ -45,7 +45,7 @@ class Player:
         self.head_image = pygame.image.load(
             os.path.join(image_folder, "head.png")
         ).convert_alpha()
-        self.head_image = pygame.transform.scale(self.head_image, PLANT_HEAD_SIZE)
+        self.head_image = pygame.transform.scale(self.head_image, (self.pixels_per_meter * PLANT_HEAD_W, self.pixels_per_meter * PLANT_HEAD_H))
         
         # Physics properties
         self.gravity = 0.2
