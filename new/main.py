@@ -65,7 +65,7 @@ gun_obj = GameObject(
 mouse_x, car_x, boonies_x, gun_x = OBJECT_WORLD_POSITIONS['mouse'], OBJECT_WORLD_POSITIONS['car'], OBJECT_WORLD_POSITIONS['boonies'], OBJECT_WORLD_POSITIONS['gun']
 
 while running:
-    print(current_height, current_height_pixels)
+    print(player.base_rect.center)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -85,6 +85,7 @@ while running:
 
     # Update pixels_per_meter based on current height
     # pixels_per_meter = current_height_pixels / current_height
+    player.pixels_per_meter = (GROUND_Y - MAX_PLANT_Y) / (player.segment_count * PLANT_SEGMENT_HEIGHT)
     pixels_per_meter = INITIAL_SEGMENTS * (player.pixels_per_meter * PLANT_SEGMENT_HEIGHT) / current_height
 
 

@@ -14,14 +14,19 @@ class Animator:
         scale: (width, height) to scale images
         frame_duration: how many ticks each frame lasts
         """
-        self.frames = [pygame.transform.scale(pygame.image.load(p).convert_alpha(), scale) 
-                       for p in image_paths]
+        self.scale = scale
+        self.image_paths = image_paths
+        self.frames = [pygame.transform.scale(pygame.image.load(p).convert_alpha(), self.scale) 
+                       for p in self.image_paths]
         self.frame_duration = frame_duration
         self.current_frame = 0
         self.counter = 0
 
-    def get_image(self):
+    def get_image(self, scale=(64, 64)):
         """Return the current frame image, advancing animation as needed."""
+        if (scale != self.scale):
+            self.frames = [pygame.transform.scale(pygame.image.load(p).convert_alpha(), scale) 
+                        for p in self.image_paths]
         self.counter += 1
         if self.counter >= self.frame_duration:
             self.counter = 0

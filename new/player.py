@@ -33,12 +33,14 @@ class Player:
         """
         Enhanced Player class with segment consolidation and mass-based physics
         """
+        self.x, self.y = x, y
+
         self.pixels_per_meter = INITIAL_PIXELS_PER_METER
 
         # Plant base setup (unchanged)
         base_paths = [os.path.join(image_folder, f"base/base{i}.png") for i in range(1, 19)]
         self.animator = Animator(base_paths, scale=(self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE), frame_duration=5)
-        self.base_image = self.animator.get_image()
+        self.base_image = self.animator.get_image((self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE))
         self.base_rect = self.base_image.get_rect(center=(x, y))
         
         # Plant head setup (unchanged)
@@ -62,7 +64,7 @@ class Player:
         # Create initial segments
         for i in range(INITIAL_SEGMENTS):
             position = Vector2(start_x, start_y - i * (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT))
-            segment = VineSegment(position, level=0)
+            segment = VineSegment(position, level=0, pixels_per_meter=self.pixels_per_meter)
             self.segments.append(segment)
         
         # Head setup
@@ -153,7 +155,8 @@ class Player:
         new_segment = VineSegment(
             base_segment.position,
             level=level + 1,
-            consolidated_count=sum(s.consolidated_count for s in segments_to_consolidate)
+            consolidated_count=sum(s.consolidated_count for s in segments_to_consolidate),
+            pixels_per_meter=self.pixels_per_meter
         )
         new_segment.old_position = Vector2(base_segment.old_position)
         new_segment.length = total_length
@@ -208,7 +211,7 @@ class Player:
                 new_position = Vector2(self.base_position.x, self.base_position.y - (self.pixels_per_meter * PLANT_SEGMENT_HEIGHT))
             
             # Create new segment
-            new_segment = VineSegment(new_position, level=0)
+            new_segment = VineSegment(new_position, level=0, pixels_per_meter=self.pixels_per_meter)
             self.segments.append(new_segment)
             
             levels = np.array([s.level for s in self.segments], dtype=int)
@@ -332,6 +335,8 @@ class Player:
     
     def update_base_position(self):
         """Update base position and propagate to first segment"""
+        self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
+
         new_base = Vector2(self.base_rect.centerx, self.base_rect.top + 50)
         offset = new_base - self.base_position
         
@@ -344,7 +349,7 @@ class Player:
     
     def update(self):
         # Update base animation
-        self.base_image = self.animator.get_image()
+        self.base_image = self.animator.get_image((self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE))
         
         # Update base position
         self.update_base_position()
@@ -413,8 +418,9 @@ class Player:
                 text = font.render(str(segment.level), True, (255, 255, 255))
                 surface.blit(text, (int(segment.position.x) - 5, int(segment.position.y) - 10))
 
-        # Draw base
+        # Draw base scaled in update base scale
         surface.blit(self.base_image, self.base_rect)
+
 
         # Draw head
         surface.blit(self.head_image, self.head_rect)
