@@ -105,11 +105,11 @@ class Slideshow:
                     self.screen.blit(text_surface, text_rect)
                 
                 # Show progress with alpha
-                progress_text = self.subtitle_font.render(f"{slide_index + 1} / {len(self.slides_data)}", True, (150, 150, 150))
-                progress_text.set_alpha(alpha)
-                self.screen.blit(progress_text, (10, SCREEN_HEIGHT - 30))
+                # progress_text = self.subtitle_font.render(f"{slide_index + 1} / {len(self.slides_data)}", True, (150, 150, 150))
+                # progress_text.set_alpha(alpha)
+                # self.screen.blit(progress_text, (10, SCREEN_HEIGHT - 30))
                 
-                skip_text = self.subtitle_font.render("Press SPACE or ENTER to continue", True, (150, 150, 150))
+                skip_text = self.subtitle_font.render("Press SPACE to continute or ENTER to skip", True, (150, 150, 150))
                 skip_text.set_alpha(alpha)
                 skip_rect = skip_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT - 30))
                 self.screen.blit(skip_text, skip_rect)
@@ -166,10 +166,10 @@ class Slideshow:
                     slide_surface.blit(text_surface, text_rect)
                 
                 # Show progress on slide surface
-                progress_text = self.subtitle_font.render(f"{slide_index + 1} / {len(self.slides_data)}", True, (150, 150, 150))
-                slide_surface.blit(progress_text, (10, SCREEN_HEIGHT - 30))
+                # progress_text = self.subtitle_font.render(f"{slide_index + 1} / {len(self.slides_data)}", True, (150, 150, 150))
+                # slide_surface.blit(progress_text, (10, SCREEN_HEIGHT - 30))
                 
-                skip_text = self.subtitle_font.render("Press SPACE or ENTER to continue", True, (150, 150, 150))
+                skip_text = self.subtitle_font.render("Press SPACE to continute or ENTER to skip", True, (150, 150, 150))
                 skip_rect = skip_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT - 30))
                 slide_surface.blit(skip_text, skip_rect)
         

@@ -29,7 +29,8 @@ class Game:
         # Load music files
         self.title_music = "assets/sound/last_moment.ogg"
         self.game_music = "assets/sound/fallen_city.ogg"
-        self.ending_music = "assets/sound/end.ogg"
+        self.ending_music = "assets/sound/last_moment.ogg"
+        self.win_music = "assets/sound/win.ogg"
         
         # Track current music state
         self.current_music = None
@@ -55,6 +56,7 @@ class Game:
             {"text": "", "image": "end/end4.jpg", "duration": 4},
             {"text": "", "image": "end/end5.jpg", "duration": 4},
             {"text": "", "image": "end/end6.jpg", "duration": 4},
+            {"text": "", "image": "end/end7.jpg", "duration": 4},
         ]
         
         # Initialize game components

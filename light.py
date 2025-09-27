@@ -1,12 +1,25 @@
 import pygame
 import random
 import math
+import os
 from constants import *
 
 class LightManager:
     def __init__(self):
         self.lights = pygame.sprite.Group()
         self.last_spawned_x = 0.0
+        
+        # Initialize pygame mixer if not already done
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+        
+        # Load sound effects
+        try:
+            self.click_sound = pygame.mixer.Sound(os.path.join("assets/sound", "CLICK.ogg"))
+            self.click_sound.set_volume(0.3)  # 30% of original volume
+        except pygame.error as e:
+            print(f"Could not load CLICK.ogg: {e}")
+            self.click_sound = None
         
         # Define different types of lights with their properties
         # (min_height, max_height, base_size, color, spawn_probability)
@@ -165,6 +178,13 @@ class LightManager:
         """
         for light in list(self.lights):
             if light.rect.colliderect(player_head_rect) and not light.is_fading:
+                # Play sound effect when orb is collected
+                if self.click_sound:
+                    try:
+                        self.click_sound.play()
+                    except pygame.error as e:
+                        print(f"Could not play click sound: {e}")
+                
                 # Start fading the light
                 light.start_fade()
                 

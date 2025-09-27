@@ -1,8 +1,20 @@
 from constants import *
 import pygame
+import os
 
 class DialogueManager:
     def __init__(self):
+        # Initialize pygame mixer if not already done
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+        
+        # Load sound effects
+        try:
+            self.click_small_sound = pygame.mixer.Sound(os.path.join("assets/sound", "CLICK_SMALL.ogg"))
+        except pygame.error as e:
+            print(f"Could not load CLICK_SMALL.ogg: {e}")
+            self.click_small_sound = None
+        
         # Load dialogue images (you'll need to replace these with your actual image paths)
         self.dialogue_sets = {
             STARTING_HEIGHT: [  # Initial height dialogue set
@@ -91,7 +103,14 @@ class DialogueManager:
         """Advance to next dialogue or start fade out"""
         if not self.dialogue_active or self.fade_in:  # Don't advance while fading in
             return
-            
+        
+        # Play sound effect when advancing dialogue
+        if self.click_small_sound:
+            try:
+                self.click_small_sound.play()
+            except pygame.error as e:
+                print(f"Could not play click_small sound: {e}")
+        
         self.current_dialogue_index += 1
         
         # If we've reached the end of current dialogue set, start fade out
