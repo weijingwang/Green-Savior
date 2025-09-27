@@ -54,30 +54,29 @@ class Player:
         self.pixels_per_meter = INITIAL_PIXELS_PER_METER
         self.target_pixels_per_meter = INITIAL_PIXELS_PER_METER      
         
-        # Define minimum sizes (in pixels) - more generous minimums
-        self.min_base_size = 60  # Larger minimum base size
-        self.min_head_width = 40  # Larger minimum head width
-        self.min_head_height = 40  # Larger minimum head height
+        # Initialize segments early so they're available for size calculations
+        self.segments = []
+        self.segment_count = INITIAL_SEGMENTS  # Initialize early for size calculations
         
-        # Plant base setup with EXTREMELY gradual scaling
+        # Define perfect default sizes (current sizes are perfect)
+        self.perfect_base_size = self.pixels_per_meter * PLANT_BASE_SIZE
+        self.perfect_head_width = int(self.pixels_per_meter * PLANT_HEAD_W + 27)
+        self.perfect_head_height = int(self.pixels_per_meter * PLANT_HEAD_H + 10)
+        
+        # Plant base setup - starts at 2x perfect size, shrinks to perfect
         base_paths = [os.path.join(image_folder, f"base/base{i}.png") for i in range(1, 19)]
-        # Use barely noticeable scaling for base size
-        base_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.1  # Almost no scaling
-        base_size = max(self.min_base_size, self.pixels_per_meter * PLANT_BASE_SIZE * base_scale_factor)
+        base_size = self.calculate_base_size()
         self.animator = Animator(base_paths, scale=(base_size, base_size), frame_duration=5)
         self.base_image = self.animator.get_image((base_size, base_size))
         self.base_rect = self.base_image.get_rect(center=(x, y))
         
-        # Plant head setup with EXTREMELY gradual scaling
+        # Plant head setup - starts at 2x perfect size, shrinks to perfect
         self.og_head_image = pygame.image.load(
             os.path.join(image_folder, "head.png")
         ).convert_alpha()
         self.og_head_rect = self.og_head_image.get_rect()
 
-        # Use barely noticeable scaling for head size
-        head_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.1  # Almost no scaling
-        head_width = max(self.min_head_width, int(self.pixels_per_meter * PLANT_HEAD_W * head_scale_factor))
-        head_height = max(self.min_head_height, int(self.pixels_per_meter * PLANT_HEAD_H * head_scale_factor))
+        head_width, head_height = self.calculate_head_size()
         self.head_image = pygame.transform.scale(self.og_head_image, (head_width, head_height))
         
         # Physics properties - MINIMAL scaling for maximum performance
@@ -87,8 +86,8 @@ class Player:
         self.damping = 0.998  # Slightly more damping for stability
         
         # Initialize with level 0 segments
-        self.segments = []
-        self.segment_count = INITIAL_SEGMENTS
+        self.constraint_iterations = 2  # Keep low for performance
+        self.damping = 0.998  # Slightly more damping for stability
         
         # Calculate initial base connection point - segments start 50 pixels below the top of base
         self.base_connection_offset = 50
@@ -101,6 +100,40 @@ class Player:
         self.update_head_position()
         print(self.head_rect)
     
+    def calculate_shrink_factor(self):
+        """Calculate shrink factor based on segment count - starts at 1.0 (2x size) and shrinks to 0.0 (perfect size)"""
+        # Use segment count to determine shrinkage - more segments = smaller head/base
+        # Start shrinking after a few segments, reach perfect size around 20-30 segments
+        max_shrink_segments = 25  # At this many segments, reach perfect (current) size
+        
+        # Safely get segment count - use stored count or actual segments length
+        current_count = self.segment_count if hasattr(self, 'segment_count') else len(self.segments)
+        shrink_progress = min(current_count / max_shrink_segments, 1.0)
+        
+        # Smooth shrinkage curve - starts fast, slows down as it approaches perfect size
+        shrink_factor = 1.0 - (shrink_progress ** 0.7)  # Starts at 1.0, goes to 0.0
+        return shrink_factor
+    
+    def calculate_base_size(self):
+        """Calculate base size - starts at 2x perfect, shrinks to perfect"""
+        shrink_factor = self.calculate_shrink_factor()
+        # shrink_factor: 1.0 = double size, 0.0 = perfect size
+        size = self.perfect_base_size * (1.0 + shrink_factor)  # 1.0 to 2.0 range
+        return int(size)
+    
+    def calculate_head_size(self):
+        """Calculate head size - starts at 2x perfect, shrinks to perfect"""
+        shrink_factor = self.calculate_shrink_factor()
+        # shrink_factor: 1.0 = double size, 0.0 = perfect size
+        width = self.perfect_head_width * (1.0 + shrink_factor)  # 1.0 to 2.0 range
+        height = self.perfect_head_height * (1.0 + shrink_factor)
+        return int(width), int(height)
+        """Initialize segments with proper connection to base"""
+        start_x = self.base_rect.centerx
+        start_y = self.base_rect.top + self.base_connection_offset
+        
+        self.base_position = Vector2(start_x, start_y)
+        
     def _initialize_segments(self):
         """Initialize segments with proper connection to base"""
         start_x = self.base_rect.centerx
@@ -156,7 +189,12 @@ class Player:
             self.segments[0].position = Vector2(self.base_position)
             self.segments[0].old_position = Vector2(self.base_position)
         
-        self.animator.change_scale = True
+        # Update base size based on segment count
+        new_base_size = self.calculate_base_size()
+        if abs(new_base_size - self.base_rect.width) > 1:  # Only update if significant change
+            base_paths = [os.path.join("assets/images/player", f"base/base{i}.png") for i in range(1, 19)]
+            self.animator = Animator(base_paths, scale=(new_base_size, new_base_size), frame_duration=5)
+            self.animator.change_scale = True
     
     @property
     def gravity(self):
@@ -394,12 +432,10 @@ class Player:
                 segment.old_position.y = min(segment.old_position.y, GROUND_Y)
     
     def update_head_position(self):
-        """Update head position with minimal scaling"""
-        if self.animator.change_scale:
-            # Barely noticeable scaling for head size
-            head_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.1  # Almost no scaling
-            head_width = max(self.min_head_width, int(self.pixels_per_meter * PLANT_HEAD_W * head_scale_factor + 27))
-            head_height = max(self.min_head_height, int(self.pixels_per_meter * PLANT_HEAD_H * head_scale_factor + 10))
+        """Update head position and size based on segment count"""
+        # Update head size based on segment count
+        head_width, head_height = self.calculate_head_size()
+        if abs(head_width - self.head_rect.width) > 1:  # Only update if significant change
             self.head_image = pygame.transform.scale(self.og_head_image, (head_width, head_height))
             self.head_rect = self.head_image.get_rect()
 
@@ -408,14 +444,29 @@ class Player:
             self.head_rect = self.head_image.get_rect(midbottom=(int(last_segment.position.x), int(last_segment.position.y)))
 
     def update_base_position(self):
-        """Update base position and propagate to first segment"""
+        """Update base position and size based on segment count"""
+        # Update base size based on segment count
+        new_base_size = self.calculate_base_size()
+        current_base_size = self.base_rect.width
+        
+        if abs(new_base_size - current_base_size) > 1:  # Only update if significant change
+            # Create new animator with updated size
+            base_paths = [os.path.join("assets/images/player", f"base/base{i}.png") for i in range(1, 19)]
+            self.animator = Animator(base_paths, scale=(new_base_size, new_base_size), frame_duration=5)
+            self.animator.change_scale = True
+        
+        # Get the updated base image
+        self.base_image = self.animator.get_image((new_base_size, new_base_size))
         self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
 
+        # Calculate new base connection point - 50 pixels below top of base
         new_base = Vector2(self.base_rect.centerx, self.base_rect.top + self.base_connection_offset)
         
-        if self.base_position.distance_to(new_base) > 0.1:
+        # Only update segment positions if there's actually a change
+        if self.base_position.distance_to(new_base) > 0.1:  # Small threshold to avoid micro-movements
             offset = new_base - self.base_position
             
+            # Move all segments by offset
             for segment in self.segments:
                 segment.position += offset
                 segment.old_position += offset
@@ -423,10 +474,7 @@ class Player:
             self.base_position = new_base
     
     def update(self):
-        # Update base animation
-        self.base_image = self.animator.get_image(self.base_rect.size)
-
-        # Update base position
+        # Update base position and size (this handles both size changes and animation)
         self.update_base_position()
         
         # Update physics
@@ -435,7 +483,7 @@ class Player:
         # Apply constraints
         self.apply_constraints()
         
-        # Update head position
+        # Update head position and size
         self.update_head_position()
         
         # Check for consolidation opportunities
