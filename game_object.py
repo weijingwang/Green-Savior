@@ -146,13 +146,42 @@ class GameObject(pygame.sprite.Sprite):
         self.update_scale(self.pixels_per_meter, self.ground_y)
 
     def update_scale(self, pixels_per_meter, ground_y):
-        """Scale image based on height in meters."""
+        """Scale image based on height in meters with size limits to prevent crashes."""
         self.pixels_per_meter = pixels_per_meter
         self.ground_y = ground_y
+        
+        # Get player height (assuming PLAYER_HEIGHT constant exists)
+        # If PLAYER_HEIGHT doesn't exist, use a reasonable default like 1.8 meters
+        try:
+            player_height = PLAYER_HEIGHT
+        except NameError:
+            player_height = 1.8  # Default human height in meters
+        
+        # Check size limits relative to player height
+        max_allowed_height = player_height * 2  # Don't draw objects more than 2x player height
+        min_allowed_height = player_height * 0.1  # Don't draw objects less than 1/10 player height
+        
+        if self.height_meters > max_allowed_height:
+            print(f"Object too large ({self.height_meters:.2f}m > {max_allowed_height:.2f}m), marking for removal")
+            self.to_kill = True
+            return
+            
+        if self.height_meters < min_allowed_height:
+            print(f"Object too small ({self.height_meters:.2f}m < {min_allowed_height:.2f}m), marking for removal")
+            self.to_kill = True
+            return
+        
         current_height_pixels = self.height_meters * pixels_per_meter
         scale_factor = current_height_pixels / self.orig_h
         new_w = int(self.orig_w * scale_factor)
         new_h = int(self.orig_h * scale_factor)
+        
+        # Additional safety check for pixel dimensions to prevent memory issues
+        max_pixel_dimension = 4000  # Reasonable maximum for most systems
+        if new_w > max_pixel_dimension or new_h > max_pixel_dimension:
+            print(f"Scaled dimensions too large ({new_w}x{new_h}), marking for removal")
+            self.to_kill = True
+            return
         
         # If scaled height is too small, mark for fading/removal
         if new_h < HEIGHT_TO_REMOVE_OBJECT:
@@ -160,10 +189,14 @@ class GameObject(pygame.sprite.Sprite):
             self.fade_out()
             return
         
-        self.image_scaled = pygame.transform.scale(self.image_orig, (new_w, new_h))
-        self.image_scaled.set_alpha(self.alpha)
-        self.rect = self.image_scaled.get_rect()
-        self.rect.bottom = ground_y
+        try:
+            self.image_scaled = pygame.transform.scale(self.image_orig, (new_w, new_h))
+            self.image_scaled.set_alpha(self.alpha)
+            self.rect = self.image_scaled.get_rect()
+            self.rect.bottom = ground_y
+        except Exception as e:
+            print(f"Error scaling image: {e}, marking for removal")
+            self.to_kill = True
 
     def fade_out(self, fade_speed=5):
         """Gradually fade out the sprite."""
@@ -186,4 +219,3 @@ class GameObject(pygame.sprite.Sprite):
             self.rect.x = x_position
             pygame.draw.rect(screen, (255, 0, 255), self.rect, 2)  # 2 = line thickness
             screen.blit(self.image_scaled, self.rect)
-
