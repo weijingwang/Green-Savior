@@ -15,8 +15,6 @@ font = pygame.font.SysFont("Arial", 28, bold=True)
 sky_img = pygame.image.load(os.path.join("assets/images", "sky.png")).convert_alpha()
 ground_img = pygame.image.load(os.path.join("assets/images", "ground.png")).convert_alpha()
 
-
-
 player = Player(SCREEN_CENTER_X, GROUND_Y)
 
 # Create object manager
@@ -57,8 +55,8 @@ while running:
     player.update()
     player.update_scale(player.pixels_per_meter)
 
-    # Update object spawning
-    object_manager.update_spawning(world_x, player.pixels_per_meter)
+    # Update object spawning - NOW PASSING CURRENT HEIGHT
+    object_manager.update_spawning(world_x, player.pixels_per_meter, current_height)
 
     # Draw background
     screen.fill((169, 173, 159)) # day sky
