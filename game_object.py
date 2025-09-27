@@ -19,8 +19,16 @@ class ObjectManager:
         self.ground_objects = [
             ('cockroach', COCKROACH_HEIGHT, 0.15),
             ('mouse', MOUSE_HEIGHT, 0.10),
-            ('person', PERSON_HEIGHT, 0.25),
-            ('car1', CAR_HEIGHT, 0.50),  # cars are very common in cities
+            ('person', PERSON_HEIGHT, 0.034),
+            ('person2', PERSON_HEIGHT*0.75, 0.034),
+            ('human3', PERSON_HEIGHT*0.5, 0.034),
+            ('human2', PERSON_HEIGHT*0.5, 0.034),
+            ('human1', PERSON_HEIGHT*0.25, 0.034),
+            ('bear', 0.6, 0.1),
+            ('car1', CAR_HEIGHT, 0.16),  # cars are very common in cities
+            ('car2', CAR_HEIGHT, 0.16),  # cars are very common in cities
+            ('car3', CAR_HEIGHT*0.8, 0.16),  # cars are very common in cities
+
         ]
 
         # Common short buildings (2–4 stories)

@@ -40,11 +40,12 @@ class VineSegment:
         return max(2, int(base_thickness * level_multiplier))  # Minimum thickness of 2
     
     def calculate_mass(self):
-        """Calculate mass based on level - higher levels are much heavier"""
-        base_mass = 1.0
-        # Mass increases exponentially with level (heavier segments move much slower)
-        mass_multiplier = 2.5 ** self.level  # Each level is 2.5x heavier
-        return base_mass * mass_multiplier * self.consolidated_count
+        """Calculate mass based on level - linear scaling for predictable behavior"""
+        base_mass = 0.6
+        # Linear mass increase instead of exponential
+        mass_increase_per_level = 0.001  # Each level adds 0.5 mass
+        level_mass = base_mass + (self.level * mass_increase_per_level)
+        return level_mass * self.consolidated_count
 
 class Player:
     def __init__(self, x, y, image_folder="assets/images/player"):
@@ -70,10 +71,10 @@ class Player:
         self.head_image = pygame.transform.scale(self.og_head_image, (int(self.pixels_per_meter * PLANT_HEAD_W), int(self.pixels_per_meter * PLANT_HEAD_H)))
         
         # Physics properties - these should scale with pixels_per_meter
-        self.base_gravity = 0.2
-        self.base_mouse_strength = 0.04
-        self.constraint_iterations = 3
-        self.damping = 0.98  # This doesn't need scaling
+        self.base_gravity = 0.1
+        self.base_mouse_strength = 1.0
+        self.constraint_iterations = 2
+        self.damping = 0.99  # This doesn't need scaling
         
         # Initialize with level 0 segments
         self.segments = []
