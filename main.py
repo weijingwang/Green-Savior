@@ -22,7 +22,7 @@ class Game:
         self.clock = pygame.time.Clock()
         
         # Fonts
-        self.font = pygame.font.SysFont("Arial", 28, bold=True)
+        self.font = pygame.font.SysFont("Arial", 36, bold=True)
         self.title_font = pygame.font.SysFont("Arial", 48, bold=True)
         self.subtitle_font = pygame.font.SysFont("Arial", 24)
         
@@ -85,8 +85,52 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    # Handle Enter key for skippable states
+                    if self.state == GameState.TITLE:
+                        # Skip title screen, go to intro slideshow
+                        self.state = GameState.INTRO_SLIDESHOW
+                        self.intro_slideshow.reset()
+                    elif self.state == GameState.INTRO_SLIDESHOW:
+                        # Skip intro slideshow, go to game
+                        self.state = GameState.GAME
+                        self.gameplay.reset()
+                        # Start game music
+                        self.play_music(self.game_music, 0.4, loops=-1)
+                    elif self.state == GameState.GAME:
+                        # Pass Enter key to gameplay to handle 40m transition
+                        if self.gameplay.handle_event(event):
+                            pass  # Gameplay handles its own transitions
+                    elif self.state == GameState.ENDING_SLIDESHOW:
+                        # Skip ending slideshow, go to win screen
+                        self.state = GameState.WIN
+                        # Don't change music - let ending music continue playing
+                    # Note: Enter key is NOT handled for WIN state
+                else:
+                    # Pass other key events to current state handler
+                    if self.state == GameState.TITLE:
+                        if self.title_screen.handle_event(event):
+                            pass  # Title screen handles its own transitions
+                            
+                    elif self.state == GameState.INTRO_SLIDESHOW:
+                        if self.intro_slideshow.handle_event(event):
+                            self.state = GameState.GAME
+                            
+                    elif self.state == GameState.GAME:
+                        if self.gameplay.handle_event(event):
+                            pass  # Gameplay handles its own transitions
+                            
+                    elif self.state == GameState.ENDING_SLIDESHOW:
+                        if self.ending_slideshow.handle_event(event):
+                            self.state = GameState.WIN
+                            
+                    elif self.state == GameState.WIN:
+                        if self.win_screen.handle_event(event):
+                            # Return to title
+                            self.reset_to_title()
             else:
-                # Pass event to current state handler
+                # Pass non-keyboard events to current state handler
                 if self.state == GameState.TITLE:
                     if self.title_screen.handle_event(event):
                         pass  # Title screen handles its own transitions
@@ -107,7 +151,8 @@ class Game:
                     if self.win_screen.handle_event(event):
                         # Return to title
                         self.reset_to_title()
-    
+
+
     def update(self):
         """Update current state"""
         if self.state == GameState.TITLE:

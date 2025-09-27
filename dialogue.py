@@ -10,10 +10,9 @@ class DialogueManager:
                 "assets/images/dialogue1/dialogue2.png", 
                 "assets/images/dialogue1/dialogue3.png"
             ],
-            0.8: [  # Height 40 dialogue set
+            40: [  # Height 40 dialogue set
                 "assets/images/dialogue2/dialogue1.png",
                 "assets/images/dialogue2/dialogue2.png",
-                "assets/images/dialogue2/dialogue3.png"
             ]
         }
         

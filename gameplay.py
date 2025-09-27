@@ -138,20 +138,20 @@ class Gameplay:
         
         # UI
         height_text = self.font.render(f"Height: {self.current_height:.2f} m", True, (255, 255, 255))
-        world_x_text = self.font.render(f"World_x: {self.world_x:.2f} m", True, (255, 255, 255))
-        speed_x_text = self.font.render(f"speed_x: {self.speed_x*FPS:.2f} m/s", True, (255, 255, 255))
-        pixels_per_meter_text = self.font.render(f"pixels/m: {self.player.pixels_per_meter:.2f}", True, (255, 255, 255))
+        # world_x_text = self.font.render(f"World_x: {self.world_x:.2f} m", True, (255, 255, 255))
+        # speed_x_text = self.font.render(f"speed_x: {self.speed_x*FPS:.2f} m/s", True, (255, 255, 255))
+        # pixels_per_meter_text = self.font.render(f"pixels/m: {self.player.pixels_per_meter:.2f}", True, (255, 255, 255))
         
-        self.screen.blit(height_text, (10, 10))
-        self.screen.blit(world_x_text, (10, 40))
-        self.screen.blit(speed_x_text, (10, 70))
-        self.screen.blit(pixels_per_meter_text, (10, 100))
+        self.screen.blit(height_text, (30, 30))
+        # self.screen.blit(world_x_text, (10, 40))
+        # self.screen.blit(speed_x_text, (10, 70))
+        # self.screen.blit(pixels_per_meter_text, (10, 100))
         
-        # Show win condition hint
-        if self.current_height > WIN_CONDITION_HEIGHT:  # Show hint when close to winning
-            win_text = self.font.render("Press ENTER when height > 40m to reach the sky!", True, (255, 255, 0))
-            win_rect = win_text.get_rect(center=(SCREEN_WIDTH//2, 150))
-            self.screen.blit(win_text, win_rect)
+        # # Show win condition hint
+        # if self.current_height > WIN_CONDITION_HEIGHT:  # Show hint when close to winning
+        #     win_text = self.font.render("Press ENTER when height > 40m to reach the sky!", True, (255, 255, 0))
+        #     win_rect = win_text.get_rect(center=(SCREEN_WIDTH//2, 150))
+        #     self.screen.blit(win_text, win_rect)
         
         # Draw fade overlay if fading to win
         if self.fading_to_win and self.fade_alpha > 0:
