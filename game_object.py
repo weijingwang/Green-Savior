@@ -7,8 +7,13 @@ class ObjectManager:
     def __init__(self):
         self.objects = pygame.sprite.Group()
         self.last_spawned_x = 0.0
-        self.spawn_distance = 0.3  # spawn every 30cm for dense city
+        self.base_spawn_distance = 0.3  # base spawn distance for small objects
         
+        # Cache for scaled images - key: (obj_type, scale_factor), value: scaled_surface
+        self.scaled_image_cache = {}
+        # Cache for original images - key: obj_type, value: original_surface
+        self.original_image_cache = {}
+
 
         # Define object layers for a proper city
         self.ground_objects = [
@@ -46,6 +51,101 @@ class ObjectManager:
             ('buildings/16.png', BUILDING16_HEIGHT, 0.5),
         ]
 
+
+    def get_scaled_spawn_distance(self, current_height):
+        """Scale spawn distance based on current height - bigger objects need more space"""
+        # Scale spawn distance proportionally to height, with minimum and maximum bounds
+        scale_factor = max(1.0, current_height / 2.0)  # Start scaling at 2m height
+        scaled_distance = self.base_spawn_distance * scale_factor
+        
+        # Set reasonable bounds
+        min_distance = 0.3  # 30cm minimum
+        max_distance = 50.0  # 50m maximum
+        
+        return max(min_distance, min(max_distance, scaled_distance))
+
+    def get_or_load_original_image(self, obj_type):
+        """Get original image from cache or load it"""
+        if obj_type in self.original_image_cache:
+            return self.original_image_cache[obj_type]
+            
+        try:
+            # Handle building images vs regular object images
+            if obj_type.startswith('buildings/'):
+                image_path = os.path.join("assets/images", obj_type)
+            elif obj_type == 'gun_building':
+                image_path = os.path.join("assets/images/objects", "gun_building.png")
+            elif obj_type == 'bone_tower':
+                image_path = os.path.join("assets/images/objects", "bone_tower.png")
+            elif obj_type == 'skyscraper':
+                image_path = os.path.join("assets/images/objects", "skyscraper.png")
+            else:
+                image_path = os.path.join("assets/images/objects", f"{obj_type}.png")
+                
+            image = pygame.image.load(image_path).convert_alpha()
+            self.original_image_cache[obj_type] = image
+            return image
+            
+        except pygame.error as e:
+            print(f"Could not load image {image_path}: {e}")
+            # Create a fallback colored rectangle - use estimated height for sizing
+            fallback_height = 100  # Default fallback height in pixels
+            if 'cockroach' in obj_type or 'mouse' in obj_type:
+                fallback_height = 20
+            elif 'person' in obj_type or 'car' in obj_type:
+                fallback_height = 50
+            elif 'building' in obj_type:
+                fallback_height = 200
+                
+            image = pygame.Surface((50, fallback_height))
+            # Color code by type
+            if 'cockroach' in obj_type or 'mouse' in obj_type:
+                image.fill((255, 255, 0))  # Yellow for small creatures
+            elif 'person' in obj_type or 'car' in obj_type:
+                image.fill((0, 255, 0))    # Green for people/cars
+            else:
+                image.fill((128, 128, 128))  # Gray for buildings
+                
+            self.original_image_cache[obj_type] = image
+            return image
+
+    def get_or_create_scaled_image(self, obj_type, height_meters, pixels_per_meter):
+        """Get scaled image from cache or create it"""
+        # Round scale factor to reduce cache size and improve hit rate
+        target_height_pixels = height_meters * pixels_per_meter
+        scale_factor = round(target_height_pixels / 10) * 10  # Round to nearest 10 pixels
+        
+        cache_key = (obj_type, scale_factor)
+        
+        if cache_key in self.scaled_image_cache:
+            return self.scaled_image_cache[cache_key]
+        
+        # Create new scaled image
+        original = self.get_or_load_original_image(obj_type)
+        if original is None:
+            return None
+            
+        orig_w, orig_h = original.get_size()
+        if orig_h == 0:
+            return None
+            
+        scale_ratio = scale_factor / orig_h
+        new_w = max(1, int(orig_w * scale_ratio))
+        new_h = max(1, int(scale_factor))
+        
+        scaled_image = pygame.transform.scale(original, (new_w, new_h))
+        
+        # Cache the scaled image
+        self.scaled_image_cache[cache_key] = scaled_image
+        
+        # Limit cache size to prevent memory issues
+        if len(self.scaled_image_cache) > 200:
+            # Remove oldest entries (simple cleanup)
+            keys_to_remove = list(self.scaled_image_cache.keys())[:50]
+            for key in keys_to_remove:
+                del self.scaled_image_cache[key]
+        
+        return scaled_image
 
     def should_spawn_object(self, object_height, current_height):
         """
@@ -120,9 +220,14 @@ class ObjectManager:
         # Filter ground objects by size too
         filtered_ground_objects = self.filter_objects_by_size(self.ground_objects, current_height)
         
+        # Reduce density for larger objects - fewer buildings when dealing with big objects
+        building_density_factor = max(0.3, 2.0 / current_height)  # Less dense for bigger objects
+        ground_density_factor = max(0.5, 5.0 / current_height)    # Less dense for bigger objects
+        
         # Only spawn buildings if we have valid filtered buildings
         if filtered_buildings:
-            num_buildings = random.randint(1, 2)
+            base_buildings = 2
+            num_buildings = max(1, int(base_buildings * building_density_factor))
             for i in range(num_buildings):
                 obj_type, height = self.select_object_from_list(filtered_buildings)
                 if obj_type:  # Make sure we got a valid object
@@ -131,7 +236,8 @@ class ObjectManager:
         
         # Only spawn ground objects if we have valid filtered ground objects
         if filtered_ground_objects:
-            num_ground_objects = random.randint(3, 6)
+            base_ground_objects = 5
+            num_ground_objects = max(1, int(base_ground_objects * ground_density_factor))
             for i in range(num_ground_objects):
                 obj_type, height = self.select_object_from_list(filtered_ground_objects)
                 if obj_type:  # Make sure we got a valid object
@@ -145,25 +251,14 @@ class ObjectManager:
     def create_object(self, obj_type, height, world_pos, pixels_per_meter):
         """Create a single object"""
         try:
-            # Handle building images vs regular object images
-            if obj_type.startswith('buildings/'):
-                image_path = os.path.join("assets/images", obj_type)  # buildings/1.png etc.
-            elif obj_type == 'gun_building':
-                image_path = os.path.join("assets/images/objects", "gun_building.png")
-            elif obj_type == 'bone_tower':
-                image_path = os.path.join("assets/images/objects", "bone_tower.png")
-            elif obj_type == 'skyscraper':
-                image_path = os.path.join("assets/images/objects", "skyscraper.png")
-            else:
-                image_path = os.path.join("assets/images/objects", f"{obj_type}.png")
-            
             print(f"Creating {obj_type} at world position {world_pos:.2f}")
 
             obj = GameObject(
-                image_path=image_path,
+                obj_type=obj_type,
                 height_meters=height,
                 pixels_per_meter=pixels_per_meter,
-                ground_y=GROUND_Y
+                ground_y=GROUND_Y,
+                object_manager=self  # Pass reference to self for image caching
             )
 
             # If GameObject failed to initialize properly, don't add it
@@ -186,13 +281,16 @@ class ObjectManager:
     def update_spawning(self, world_x, pixels_per_meter, current_height):
         left_visible, right_visible = self.get_visible_range(world_x, pixels_per_meter)
 
+        # Use scaled spawn distance
+        spawn_distance = self.get_scaled_spawn_distance(current_height)
+
         # Continuous spawning system - spawn ahead of the player
         spawn_ahead_distance = right_visible
         
         # Keep spawning until we've filled the visible area plus buffer
         while self.last_spawned_x < spawn_ahead_distance:
             self.spawn_city_block(self.last_spawned_x, pixels_per_meter, current_height)
-            self.last_spawned_x += self.spawn_distance
+            self.last_spawned_x += spawn_distance
         
         # Also spawn behind if we haven't yet (for when player might move backwards)
         spawn_behind_distance = left_visible
@@ -202,14 +300,14 @@ class ObjectManager:
         while temp_spawn_pos > spawn_behind_distance:
             # Check if we already have objects near this position
             has_objects_nearby = any(
-                abs(getattr(obj, "world_pos", float('inf')) - temp_spawn_pos) < 2.0
+                abs(getattr(obj, "world_pos", float('inf')) - temp_spawn_pos) < spawn_distance
                 for obj in self.objects
             )
             
             if not has_objects_nearby:
                 self.spawn_city_block(temp_spawn_pos, pixels_per_meter, current_height)
             
-            temp_spawn_pos -= self.spawn_distance
+            temp_spawn_pos -= spawn_distance
 
         # Update scales for all objects and remove those that are now out of size range
         for obj in list(self.objects):
@@ -222,8 +320,6 @@ class ObjectManager:
                 continue
                 
             obj.update_scale(pixels_per_meter, GROUND_Y)
-            if getattr(obj, "image_scaled", None):
-                obj.image = obj.image_scaled
             
             # Handle fading objects
             obj.update()
@@ -267,68 +363,66 @@ class ObjectManager:
                 drawn_count += 1
         
         # Debug info
-        print(f"Total objects: {len(self.objects)}, Drawn: {drawn_count}, Last spawned at: {self.last_spawned_x:.1f}")
+        current_spawn_distance = self.get_scaled_spawn_distance(pixels_per_meter / 100)  # rough estimate
+        print(f"Total objects: {len(self.objects)}, Drawn: {drawn_count}, Last spawned at: {self.last_spawned_x:.1f}, Spawn distance: {current_spawn_distance:.1f}m, Cache size: {len(self.scaled_image_cache)}")
 
 
 class GameObject(pygame.sprite.Sprite):
-    def __init__(self, image_path, height_meters, pixels_per_meter, ground_y):
+    def __init__(self, obj_type, height_meters, pixels_per_meter, ground_y, object_manager):
         """
-        GameObject class as a pygame Sprite.
+        GameObject class as a pygame Sprite with shared image caching.
         """
         super().__init__()
-        try:
-            self.image_orig = pygame.image.load(image_path).convert_alpha()
-        except pygame.error as e:
-            print(f"Could not load image {image_path}: {e}")
-            # Create a fallback colored rectangle based on object type
-            self.image_orig = pygame.Surface((50, int(height_meters * 20)))  # height-appropriate fallback
-            # Color code by approximate height for debugging
-            if height_meters < 0.1:
-                self.image_orig.fill((255, 255, 0))  # Yellow for small creatures
-            elif height_meters < 2:
-                self.image_orig.fill((0, 255, 0))    # Green for people/cars
-            else:
-                self.image_orig.fill((128, 128, 128))  # Gray for buildings
-            
-        self.orig_w, self.orig_h = self.image_orig.get_size() # pixels
+        
+        self.obj_type = obj_type
         self.height_meters = height_meters
         self.pixels_per_meter = pixels_per_meter
         self.ground_y = ground_y
+        self.object_manager = object_manager  # Reference to manager for image caching
+        
         self.image_scaled = None
         self.rect = None
         self.alpha = 255  # For fading
         self.to_kill = False  # Flag to remove sprite
+        
         self.update_scale(self.pixels_per_meter, self.ground_y)
 
     def update_scale(self, pixels_per_meter, ground_y):
-        """Scale image based on height in meters."""
+        """Scale image based on height in meters using shared cache."""
         self.pixels_per_meter = pixels_per_meter
         self.ground_y = ground_y
         current_height_pixels = self.height_meters * pixels_per_meter
-        scale_factor = current_height_pixels / self.orig_h
-        new_w = int(self.orig_w * scale_factor)
-        new_h = int(self.orig_h * scale_factor)
         
         # If scaled height is too small, start fading but don't kill immediately
-        if new_h < HEIGHT_TO_REMOVE_OBJECT:
+        if current_height_pixels < HEIGHT_TO_REMOVE_OBJECT:
             if not self.to_kill:  # Only start fading once
                 self.to_kill = True
             # Continue to scale the image even while fading
         
-        # Always create the scaled image (even while fading)
-        if new_w > 0 and new_h > 0:
-            self.image_scaled = pygame.transform.scale(self.image_orig, (new_w, new_h))
-            self.image_scaled.set_alpha(self.alpha)
-            self.rect = self.image_scaled.get_rect()
-            self.rect.bottom = ground_y
+        # Get scaled image from cache
+        if current_height_pixels > 0:
+            self.image_scaled = self.object_manager.get_or_create_scaled_image(
+                self.obj_type, 
+                self.height_meters, 
+                pixels_per_meter
+            )
+            
+            if self.image_scaled:
+                # Apply alpha for fading
+                if self.alpha < 255:
+                    temp_surface = self.image_scaled.copy()
+                    temp_surface.set_alpha(self.alpha)
+                    self.image_scaled = temp_surface
+                
+                self.rect = self.image_scaled.get_rect()
+                self.rect.bottom = ground_y
 
     def fade_out(self, fade_speed=5):
         """Gradually fade out the sprite."""
         if self.alpha > 0:
             self.alpha -= fade_speed
             self.alpha = max(self.alpha, 0)
-            if self.image_scaled:
-                self.image_scaled.set_alpha(self.alpha)
+            # Image alpha will be applied in next update_scale call
         else:
             self.kill()  # Remove from all sprite groups
 
