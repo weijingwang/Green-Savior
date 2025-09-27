@@ -352,7 +352,7 @@ class ObjectManager:
         
         # Second pass: draw objects in sorted order (tallest first, shortest last = on top)
         for obj, screen_x in visible_objects:
-            pygame.draw.rect(screen, (255, 0, 255), obj.rect, 1)  # thinner debug outline
+            # pygame.draw.rect(screen, (255, 0, 255), obj.rect, 1)  # thinner debug outline
             screen.blit(obj.image_scaled, obj.rect)
             drawn_count += 1
         
