@@ -48,7 +48,7 @@ class DialogueManager:
         self.fade_speed = 5  # How fast to fade (higher = faster)
         
         # Position for dialogue box (centered on x-axis)
-        self.dialogue_y = 400
+        self.dialogue_y = 500
     
     def create_placeholder_dialogue(self, text):
         """Create a placeholder dialogue box with text"""

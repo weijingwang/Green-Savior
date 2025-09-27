@@ -26,23 +26,35 @@ class Game:
         self.title_font = pygame.font.SysFont("Arial", 48, bold=True)
         self.subtitle_font = pygame.font.SysFont("Arial", 24)
         
+        # Load music files
+        self.title_music = "assets/sound/last_moment.ogg"
+        self.game_music = "assets/sound/fallen_city.ogg"
+        self.ending_music = "assets/sound/end.ogg"
+        
+        # Track current music state
+        self.current_music = None
+        
         # Game state
         self.state = GameState.TITLE
         self.running = True
         
         # Define slide data
         self.intro_slides_data = [
-            {"text": "Long ago, a tiny plant dreamed of touching the sky...", "image": "intro/intro1.png", "duration": 4},
-            {"text": "With each stretch upward, it grew closer to its goal...", "image": "intro/intro2.png", "duration": 4},
-            {"text": "Help the plant reach for the heavens!", "image": "intro/intro3.png", "duration": 4},
-            {"text": "Press SPACE to grow, but beware the dangers above...", "image": "intro/intro4.png", "duration": 4}
+            {"text": "In my old age I see clearly the wasteland we have created... a world run on greed", "image": "intro/intro1.png", "duration": 4},
+            {"text": "We chased power and profits...until the earth was stripped bare", "image": "intro/intro2.png", "duration": 4},
+            {"text": "I hold the last green, you will become our messiah", "image": "intro/intro3.png", "duration": 4},
+            {"text": "may this green savior forgive my sins", "image": "intro/intro4.png", "duration": 4},
+            {"text": "*drops", "image": "intro/intro5.png", "duration": 4},
+            {"text": "This is but a small redemption...", "image": "intro/intro6.png", "duration": 4}
         ]
         
         self.ending_slides_data = [
-            {"text": "Congratulations! The little plant reached the sky!", "image": None, "duration": 4},
-            {"text": "Through determination and courage, dreams can come true...", "image": None, "duration": 4},
-            {"text": "Even the smallest beings can achieve greatness!", "image": None, "duration": 4},
-            {"text": "Thank you for playing!", "image": None, "duration": 4}
+            {"text": "", "image": "end/end1.jpg", "duration": 4},
+            {"text": "", "image": "end/end2.jpg", "duration": 4},
+            {"text": "", "image": "end/end3.jpg", "duration": 4},
+            {"text": "", "image": "end/end4.jpg", "duration": 4},
+            {"text": "", "image": "end/end5.jpg", "duration": 4},
+            {"text": "", "image": "end/end6.jpg", "duration": 4},
         ]
         
         # Initialize game components
@@ -52,6 +64,22 @@ class Game:
         self.ending_slideshow = Slideshow(self.screen, self.font, self.subtitle_font, self.ending_slides_data, is_ending=True)
         self.win_screen = WinScreen(self.screen, self.font, self.title_font, self.subtitle_font)
         
+        # Start title music
+        self.play_music(self.title_music, 0.3, loops=-1)
+        
+    def play_music(self, music_file, volume, loops=0):
+        """Play music with specified volume and loop settings"""
+        if self.current_music != music_file:
+            try:
+                pygame.mixer.music.stop()
+                pygame.mixer.music.load(music_file)
+                pygame.mixer.music.set_volume(volume)
+                pygame.mixer.music.play(loops)
+                self.current_music = music_file
+                print(f"Playing music: {music_file} at volume {volume}")
+            except pygame.error as e:
+                print(f"Could not load music {music_file}: {e}")
+                
     def handle_events(self):
         """Handle input events based on current state"""
         for event in pygame.event.get():
@@ -93,17 +121,22 @@ class Game:
                 # Intro slideshow complete, go to game
                 self.state = GameState.GAME
                 self.gameplay.reset()
+                # Start game music
+                self.play_music(self.game_music, 0.4, loops=-1)
                 
         elif self.state == GameState.GAME:
             if self.gameplay.update():
                 # Game wants to transition to ending
                 self.state = GameState.ENDING_SLIDESHOW
                 self.ending_slideshow.reset()
+                # Start ending music
+                self.play_music(self.ending_music, 0.5, loops=0)
                 
         elif self.state == GameState.ENDING_SLIDESHOW:
             if self.ending_slideshow.update():
                 # Ending slideshow complete, go to win screen
                 self.state = GameState.WIN
+                # Don't change music - let ending music continue playing
                 
         elif self.state == GameState.WIN:
             self.win_screen.update()
@@ -115,6 +148,8 @@ class Game:
         self.intro_slideshow.reset()
         self.gameplay.reset()
         self.ending_slideshow.reset()
+        # Resume title music
+        self.play_music(self.title_music, 0.3, loops=-1)
     
     def draw(self):
         """Draw current state"""
@@ -144,6 +179,7 @@ class Game:
             
             self.clock.tick(60)
         
+        pygame.mixer.music.stop()  # Stop music when quitting
         pygame.quit()
 
 # Create and run the game

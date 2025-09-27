@@ -69,7 +69,7 @@ class Gameplay:
             
             elif event.key == pygame.K_RETURN:
                 # Check win condition
-                if self.current_height > 40:
+                if self.current_height > WIN_CONDITION_HEIGHT:
                     self.fading_to_win = True
                     
         elif event.type == pygame.KEYUP:
@@ -148,7 +148,7 @@ class Gameplay:
         self.screen.blit(pixels_per_meter_text, (10, 100))
         
         # Show win condition hint
-        if self.current_height > 35:  # Show hint when close to winning
+        if self.current_height > WIN_CONDITION_HEIGHT:  # Show hint when close to winning
             win_text = self.font.render("Press ENTER when height > 40m to reach the sky!", True, (255, 255, 0))
             win_rect = win_text.get_rect(center=(SCREEN_WIDTH//2, 150))
             self.screen.blit(win_text, win_rect)
