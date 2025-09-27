@@ -58,13 +58,24 @@ class ObjectManager:
         ]
 
 
-    def get_scaled_spawn_distance(self, current_height): # in meters!!!!
-        """Scale spawn distance based on current height - bigger objects need more space"""
-        # Scale spawn distance proportionally to height, with minimum and maximum bounds        
-        # Set reasonable bounds
-        min_distance = 0.3  # 30cm minimum
+    def get_scaled_spawn_distance(self, obj_type, obj_height, pixels_per_meter):
+        """Scale spawn distance based on object height and type - buildings are more dense"""
+        # Different spacing for different object types
+        if obj_type.startswith('buildings/'):
+            # Buildings in cities are very close together
+            base_distance = obj_height * 0.2  # Much smaller base distance for buildings
+            padding = obj_height * 0.1  # Minimal padding between buildings
+            min_distance = 0.1  # 10cm minimum for buildings (very tight)
+            max_distance = 5.0   # 5m maximum for buildings
+        else:
+            # Ground objects (people, cars, etc.) need more space to move around
+            base_distance = obj_height * 0.4  # Moderate spacing for ground objects
+            padding = obj_height * 0.2  # Some padding for movement
+            min_distance = 0.3  # 30cm minimum spacing
+            max_distance = 8.0  # 8m maximum spacing
         
-        return min_distance
+        distance = base_distance + padding
+        return max(min_distance, min(distance, max_distance))
 
     def get_or_load_original_image(self, obj_type):
         """Get original image from cache or load it"""
@@ -81,7 +92,6 @@ class ObjectManager:
         self.original_image_cache[obj_type] = image
         return image
             
-
 
     def get_or_create_scaled_image(self, obj_type, height_meters, pixels_per_meter):
         """Get scaled image from cache or create it"""
@@ -151,10 +161,21 @@ class ObjectManager:
         
         return []
 
-    def get_visible_range(self, world_x, pixels_per_meter):
-        screen_meters = SCREEN_CENTER_X / pixels_per_meter
-        buffer = screen_meters * 1.1  # larger buffer for smoother spawning
-        return world_x - buffer, world_x + buffer
+    def get_spawn_bounds(self, world_x, pixels_per_meter):
+        """Get the world coordinates where objects should spawn and be killed"""
+        # Convert screen coordinates to world coordinates
+        # Objects spawn at right edge (SCREEN_WIDTH) and are killed at left edge (0)
+        
+        # Right edge spawn position in world coordinates
+        spawn_x_world = world_x + (SCREEN_WIDTH - SCREEN_CENTER_X) / pixels_per_meter
+        
+        # Left edge kill position in world coordinates  
+        kill_x_world = world_x + (0 - SCREEN_CENTER_X) / pixels_per_meter
+        
+        # Add some buffer for smooth spawning/despawning
+        spawn_buffer = 50 / pixels_per_meter  # 50 pixels buffer
+        
+        return kill_x_world - spawn_buffer, spawn_x_world + spawn_buffer
 
     def select_object_from_list(self, object_list):
         """Select an object from a weighted list"""
@@ -180,47 +201,51 @@ class ObjectManager:
             return self.medium_buildings  
         elif current_height < 100:  # Tall (20-100m), see skyscrapers
             return self.tall_buildings
-        else:  # Very tall (100m+), see super buildings
-            return self.super_buildings
+        else:  # Very tall (100m+), see super buildings (you might need to add this)
+            return self.tall_buildings  # Fallback to tall buildings
 
-    def spawn_city_block(self, world_pos, pixels_per_meter, current_height):
-        """Spawn a dense city block with multiple objects"""
-        spawned_objects = []
+    def spawn_objects_ahead(self, world_x, pixels_per_meter, current_height):
+        """Spawn objects ahead of the player with proper spacing - dense buildings like a city"""
+        kill_x_world, spawn_x_world = self.get_spawn_bounds(world_x, pixels_per_meter)
         
-        # Get appropriate buildings for current height and filter by size
+        # Get appropriate objects for current height
         building_list = self.get_appropriate_buildings(current_height)
         filtered_buildings = self.filter_objects_by_size(building_list, current_height)
-        
-        # Filter ground objects by size too
         filtered_ground_objects = self.filter_objects_by_size(self.ground_objects, current_height)
         
-        # Reduce density for larger objects - fewer buildings when dealing with big objects
-        building_density_factor = max(0.3, 2.0 / current_height)  # Less dense for bigger objects
-        ground_density_factor = max(0.5, 5.0 / current_height)    # Less dense for bigger objects
+        # Start spawning from last spawned position or current spawn bound
+        spawn_start = max(self.last_spawned_x, world_x)
+        current_spawn_x = spawn_start
         
-        # Only spawn buildings if we have valid filtered buildings
-        if filtered_buildings:
-            base_buildings = 2
-            num_buildings = max(1, int(base_buildings * building_density_factor))
-            for i in range(num_buildings):
-                obj_type, height = self.select_object_from_list(filtered_buildings)
-                if obj_type:  # Make sure we got a valid object
-                    building_pos = world_pos + random.uniform(-1, 2)
-                    spawned_objects.append((obj_type, height, building_pos))
-        
-        # Only spawn ground objects if we have valid filtered ground objects
-        if filtered_ground_objects:
-            base_ground_objects = 5
-            num_ground_objects = max(1, int(base_ground_objects * ground_density_factor))
-            for i in range(num_ground_objects):
-                obj_type, height = self.select_object_from_list(filtered_ground_objects)
-                if obj_type:  # Make sure we got a valid object
-                    obj_pos = world_pos + random.uniform(-1.5, 2.5)
-                    spawned_objects.append((obj_type, height, obj_pos))
-        
-        # Actually create all the objects
-        for obj_type, height, pos in spawned_objects:
-            self.create_object(obj_type, height, pos, pixels_per_meter)
+        # Spawn objects until we reach the spawn boundary
+        while current_spawn_x < spawn_x_world:
+            # Prioritize buildings for city density - 70% buildings, 30% ground objects
+            if filtered_buildings and (not filtered_ground_objects or random.random() < 0.7):
+                # Spawn a building
+                obj_type, obj_height = self.select_object_from_list(filtered_buildings)
+            elif filtered_ground_objects:
+                # Spawn a ground object
+                obj_type, obj_height = self.select_object_from_list(filtered_ground_objects)
+            else:
+                # No valid objects, skip ahead
+                current_spawn_x += 2.0
+                self.last_spawned_x = current_spawn_x
+                continue
+            
+            if obj_type and obj_height:
+                # Create the object
+                self.create_object(obj_type, obj_height, current_spawn_x, pixels_per_meter)
+                
+                # Calculate spacing based on this object's type and size
+                spawn_distance = self.get_scaled_spawn_distance(obj_type, obj_height, pixels_per_meter)
+                
+                # Move to next spawn position
+                current_spawn_x += spawn_distance
+                self.last_spawned_x = current_spawn_x
+            else:
+                # Fallback spacing if object selection fails
+                current_spawn_x += 1.0
+                self.last_spawned_x = current_spawn_x
 
     def create_object(self, obj_type, height, world_pos, pixels_per_meter):
         """Create a single object"""
@@ -253,35 +278,9 @@ class ObjectManager:
             print(f"Error creating object {obj_type}: {e}")
 
     def update_spawning(self, world_x, pixels_per_meter, current_height):
-        left_visible, right_visible = self.get_visible_range(world_x, pixels_per_meter)
-
-        # Use scaled spawn distance
-        spawn_distance = self.get_scaled_spawn_distance(current_height)
-
-        # Continuous spawning system - spawn ahead of the player
-        spawn_ahead_distance = right_visible
-        
-        # Keep spawning until we've filled the visible area plus buffer
-        while self.last_spawned_x < spawn_ahead_distance:
-            self.spawn_city_block(self.last_spawned_x, pixels_per_meter, current_height)
-            self.last_spawned_x += spawn_distance
-        
-        # Also spawn behind if we haven't yet (for when player might move backwards)
-        spawn_behind_distance = left_visible
-        temp_spawn_pos = world_x - 10  # Start spawning from 10 meters behind current position
-        
-        # Fill in any gaps behind the player
-        while temp_spawn_pos > spawn_behind_distance:
-            # Check if we already have objects near this position
-            has_objects_nearby = any(
-                abs(getattr(obj, "world_pos", float('inf')) - temp_spawn_pos) < spawn_distance
-                for obj in self.objects
-            )
-            
-            if not has_objects_nearby:
-                self.spawn_city_block(temp_spawn_pos, pixels_per_meter, current_height)
-            
-            temp_spawn_pos -= spawn_distance
+        """Main spawning update function"""
+        # Spawn objects ahead of player
+        self.spawn_objects_ahead(world_x, pixels_per_meter, current_height)
 
         # Update scales for all objects and remove those that are now out of size range
         for obj in list(self.objects):
@@ -298,22 +297,36 @@ class ObjectManager:
             # Handle fading objects
             obj.update()
 
-        # Cleanup distant objects (keep more objects loaded for a fuller world)
-        self.cleanup_distant(world_x, pixels_per_meter)
+        # Cleanup objects that have moved off screen
+        self.cleanup_offscreen_objects(world_x, pixels_per_meter)
 
-    def cleanup_distant(self, world_x, pixels_per_meter):
-        cleanup_distance = (SCREEN_WIDTH / pixels_per_meter) * 4  # Keep objects longer
+    def cleanup_offscreen_objects(self, world_x, pixels_per_meter):
+        """Remove objects when their right edge has moved past the left edge of the screen"""
+        kill_x_world, _ = self.get_spawn_bounds(world_x, pixels_per_meter)
+        
         for obj in list(self.objects):
             world_pos = getattr(obj, "world_pos", None)
             if world_pos is None:
                 continue
-            if abs(world_pos - world_x) > cleanup_distance:
-                print(f"Killing object {getattr(obj, 'obj_type', '?')} at {world_pos:.2f} (too far)")
+            
+            # Calculate the object's width in world coordinates
+            obj_width_pixels = getattr(obj.rect, "width", 0) if hasattr(obj, "rect") and obj.rect else 0
+            obj_width_world = obj_width_pixels / pixels_per_meter
+            
+            # Calculate the right edge of the object in world coordinates
+            obj_right_edge_world = world_pos + obj_width_world
+            
+            # Kill objects only when their right edge has moved past the left screen edge
+            if obj_right_edge_world < kill_x_world:
+                print(f"Killing object {getattr(obj, 'obj_type', '?')} at {world_pos:.2f} (right edge {obj_right_edge_world:.2f} past left edge {kill_x_world:.2f})")
                 obj.kill()
 
     def draw_all(self, screen, world_x, pixels_per_meter):
-        """Draw all visible objects, moving them according to world_x."""
+        """Draw all visible objects, moving them according to world_x. Smaller objects drawn in front."""
         drawn_count = 0
+        visible_objects = []
+        
+        # First pass: collect all visible objects and calculate screen positions
         for obj in list(self.objects):
             # skip incomplete objects
             if getattr(obj, "rect", None) is None or getattr(obj, "image_scaled", None) is None:
@@ -330,15 +343,22 @@ class ObjectManager:
             # Set the sprite rect x so subsequent code sees the correct position
             obj.rect.x = screen_x
 
-            # Simple culling: only draw if it overlaps the screen horizontally
+            # Simple culling: only collect if it overlaps the screen horizontally
             if -obj.rect.width <= screen_x <= SCREEN_WIDTH:
-                pygame.draw.rect(screen, (255, 0, 255), obj.rect, 1)  # thinner debug outline
-                screen.blit(obj.image_scaled, obj.rect)
-                drawn_count += 1
+                visible_objects.append((obj, screen_x))
+        
+        # Sort objects by height (largest to smallest) so smaller objects draw on top
+        visible_objects.sort(key=lambda item: getattr(item[0], "height_meters", 0), reverse=True)
+        
+        # Second pass: draw objects in sorted order (tallest first, shortest last = on top)
+        for obj, screen_x in visible_objects:
+            pygame.draw.rect(screen, (255, 0, 255), obj.rect, 1)  # thinner debug outline
+            screen.blit(obj.image_scaled, obj.rect)
+            drawn_count += 1
         
         # Debug info
-        current_spawn_distance = self.get_scaled_spawn_distance(pixels_per_meter / 100)  # rough estimate
-        print(f"Total objects: {len(self.objects)}, Drawn: {drawn_count}, Last spawned at: {self.last_spawned_x:.1f}, Spawn distance: {current_spawn_distance:.1f}m, Cache size: {len(self.scaled_image_cache)}")
+        kill_x, spawn_x = self.get_spawn_bounds(world_x, pixels_per_meter)
+        print(f"Total objects: {len(self.objects)}, Drawn: {drawn_count}, Last spawned at: {self.last_spawned_x:.1f}, Kill bound: {kill_x:.1f}, Spawn bound: {spawn_x:.1f}, Cache size: {len(self.scaled_image_cache)}")
 
 
 class GameObject(pygame.sprite.Sprite):
