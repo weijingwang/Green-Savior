@@ -530,13 +530,13 @@ class Player:
             pygame.draw.circle(surface, joint_color, 
                              (int(segment.position.x), int(segment.position.y)), joint_size)
             
-            # Draw level number for debugging with minimal font scaling
-            if segment.level > 0:
-                font_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.1  # Almost no scaling
-                font_size = max(16, int(20 * font_scale_factor))
-                font = pygame.font.Font(None, font_size)
-                text = font.render(str(segment.level), True, (255, 255, 255))
-                surface.blit(text, (int(segment.position.x) - 5, int(segment.position.y) - 10))
+            # # Draw level number for debugging with minimal font scaling
+            # if segment.level > 0:
+            #     font_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.1  # Almost no scaling
+            #     font_size = max(16, int(20 * font_scale_factor))
+            #     font = pygame.font.Font(None, font_size)
+            #     text = font.render(str(segment.level), True, (255, 255, 255))
+            #     surface.blit(text, (int(segment.position.x) - 5, int(segment.position.y) - 10))
 
         # Draw base on top of segments
         surface.blit(self.base_image, self.base_rect)

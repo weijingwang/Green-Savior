@@ -22,7 +22,7 @@ class Game:
         self.clock = pygame.time.Clock()
         
         # Fonts
-        self.font = pygame.font.SysFont("Arial", 36, bold=True)
+        self.font = pygame.font.SysFont("Arial", 28, bold=True)
         self.title_font = pygame.font.SysFont("Arial", 48, bold=True)
         self.subtitle_font = pygame.font.SysFont("Arial", 24)
         

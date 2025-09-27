@@ -138,13 +138,13 @@ class Gameplay:
         
         # UI
         height_text = self.font.render(f"Height: {self.current_height:.2f} m", True, (255, 255, 255))
-        # world_x_text = self.font.render(f"World_x: {self.world_x:.2f} m", True, (255, 255, 255))
-        # speed_x_text = self.font.render(f"speed_x: {self.speed_x*FPS:.2f} m/s", True, (255, 255, 255))
+        world_x_text = self.font.render(f"Distance traveled: {self.world_x:.2f} m", True, (255, 255, 255))
+        speed_x_text = self.font.render(f"Speed: {self.speed_x*FPS:.2f} m/s", True, (255, 255, 255))
         # pixels_per_meter_text = self.font.render(f"pixels/m: {self.player.pixels_per_meter:.2f}", True, (255, 255, 255))
         
-        self.screen.blit(height_text, (30, 30))
-        # self.screen.blit(world_x_text, (10, 40))
-        # self.screen.blit(speed_x_text, (10, 70))
+        self.screen.blit(height_text, (20, 20))
+        self.screen.blit(world_x_text, (20,50))
+        self.screen.blit(speed_x_text, (20, 80))
         # self.screen.blit(pixels_per_meter_text, (10, 100))
         
         # # Show win condition hint
