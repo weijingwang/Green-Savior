@@ -41,7 +41,7 @@ COCKROACH_HEIGHT = 0.05  # meters
 MOUSE_HEIGHT = 0.1       # meters
 CAR_HEIGHT = 1.5          # meters
 PERSON_HEIGHT = 1.7       # meters
-BEAR_HEIGHT = 1.4         # meters
+BEAR_HEIGHT = 3         # meters
 
 # Buildings (scaled from PERSON_HEIGHT)
 BUILDING1_HEIGHT  = PERSON_HEIGHT * 2.5
