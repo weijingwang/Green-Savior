@@ -34,9 +34,11 @@ class VineSegment:
         # Note: mass doesn't change with scale, it's based on level/count only
     
     def calculate_thickness(self):
-        """Calculate thickness based on level and current scale"""
-        base_thickness = 12 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)  # Scale with pixels_per_meter
-        level_multiplier = 1.5 ** self.level  # Thicker for higher levels
+        """Calculate thickness based on level and current scale with gentler scaling"""
+        # Use square root scaling instead of linear - this makes thickness shrink more slowly
+        scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.5
+        base_thickness = 20 * scale_factor  # Gentler scaling
+        level_multiplier = 2 ** self.level  # Thicker for higher levels
         return max(2, int(base_thickness * level_multiplier))  # Minimum thickness of 2
     
     def calculate_mass(self):
@@ -56,19 +58,32 @@ class Player:
 
         self.pixels_per_meter = INITIAL_PIXELS_PER_METER
         self.target_pixels_per_meter = INITIAL_PIXELS_PER_METER      
-        # Plant base setup (unchanged)
+        
+        # Define minimum sizes (in pixels)
+        self.min_base_size = 40  # Minimum base size
+        self.min_head_width = 30  # Minimum head width
+        self.min_head_height = 30  # Minimum head height
+        
+        # Plant base setup with gentler scaling and minimum size
         base_paths = [os.path.join(image_folder, f"base/base{i}.png") for i in range(1, 19)]
-        self.animator = Animator(base_paths, scale=(self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE), frame_duration=5)
-        self.base_image = self.animator.get_image((self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE))
+        # Use gentler scaling for base size with minimum
+        base_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.6  # Slower shrinking
+        base_size = max(self.min_base_size, self.pixels_per_meter * PLANT_BASE_SIZE * base_scale_factor)
+        self.animator = Animator(base_paths, scale=(base_size, base_size), frame_duration=5)
+        self.base_image = self.animator.get_image((base_size, base_size))
         self.base_rect = self.base_image.get_rect(center=(x, y))
         
-        # Plant head setup (unchanged)
+        # Plant head setup with gentler scaling and minimum size
         self.og_head_image = pygame.image.load(
             os.path.join(image_folder, "head.png")
         ).convert_alpha()
         self.og_head_rect = self.og_head_image.get_rect()
 
-        self.head_image = pygame.transform.scale(self.og_head_image, (int(self.pixels_per_meter * PLANT_HEAD_W), int(self.pixels_per_meter * PLANT_HEAD_H)))
+        # Use gentler scaling for head size with minimum
+        head_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.6  # Slower shrinking
+        head_width = max(self.min_head_width, int(self.pixels_per_meter * PLANT_HEAD_W * head_scale_factor))
+        head_height = max(self.min_head_height, int(self.pixels_per_meter * PLANT_HEAD_H * head_scale_factor))
+        self.head_image = pygame.transform.scale(self.og_head_image, (head_width, head_height))
         
         # Physics properties - these should scale with pixels_per_meter
         self.base_gravity = 0.1
@@ -80,8 +95,8 @@ class Player:
         self.segments = []
         self.segment_count = INITIAL_SEGMENTS
         
-        # Calculate initial base connection point (store as offset from base center)
-        self.base_connection_offset = 50 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)
+        # Calculate initial base connection point - segments start 50 pixels below the top of base
+        self.base_connection_offset = 50
         
         # Create initial segments
         self._initialize_segments()
@@ -99,8 +114,9 @@ class Player:
         # # torso_x = base_x + math.sin(walk_timer*0.5)*15
     
     def _initialize_segments(self):
-        """Initialize segments with proper connection to base"""
+        """Initialize segments with proper connection to base - starting 50 pixels below base top"""
         start_x = self.base_rect.centerx
+        # Segments start 50 pixels below the top of the base image
         start_y = self.base_rect.top + self.base_connection_offset
         
         # Store base position for reference
@@ -124,8 +140,8 @@ class Player:
         self.x *= scale_ratio
         self.y *= scale_ratio
         
-        # Update base connection offset
-        self.base_connection_offset = 50 * (new_pixels_per_meter / INITIAL_PIXELS_PER_METER)
+        # Base connection offset stays constant at 50 pixels
+        self.base_connection_offset = 50
         
         # Update base rect and position
         self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
@@ -432,10 +448,13 @@ class Player:
                 segment.old_position.y = min(segment.old_position.y, GROUND_Y)
     
     def update_head_position(self):
-        """Update head position based on last segment"""
+        """Update head position based on last segment with gentler scaling and minimum size"""
         if self.animator.change_scale:
-            factor = self.pixels_per_meter
-            self.head_image = pygame.transform.scale(self.og_head_image, (factor * PLANT_HEAD_W + 27, factor * PLANT_HEAD_H + 10))
+            # Use gentler scaling for head size with minimum
+            head_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.6  # Slower shrinking
+            head_width = max(self.min_head_width, int(self.pixels_per_meter * PLANT_HEAD_W * head_scale_factor + 27))
+            head_height = max(self.min_head_height, int(self.pixels_per_meter * PLANT_HEAD_H * head_scale_factor + 10))
+            self.head_image = pygame.transform.scale(self.og_head_image, (head_width, head_height))
             self.head_rect = self.head_image.get_rect()
 
         if self.segments:
@@ -446,7 +465,7 @@ class Player:
         """Update base position and propagate to first segment"""
         self.base_rect = self.base_image.get_rect(center=(self.x, self.y))
 
-        # Calculate new base connection point
+        # Calculate new base connection point - 50 pixels below top of base
         new_base = Vector2(self.base_rect.centerx, self.base_rect.top + self.base_connection_offset)
         
         # Only update if there's actually a change
@@ -462,8 +481,8 @@ class Player:
     
     def update(self):
         # Update base animation
-        self.base_image = self.animator.get_image((self.pixels_per_meter * PLANT_BASE_SIZE, self.pixels_per_meter * PLANT_BASE_SIZE))
-        
+        self.base_image = self.animator.get_image(self.base_rect.size)
+
         # Update base position
         self.update_base_position()
         
@@ -487,7 +506,7 @@ class Player:
         return info
     
     def draw(self, surface):
-        # Draw segments with level-appropriate styling
+        # Draw segments with level-appropriate styling FIRST
         if len(self.segments) > 1:
             for i in range(len(self.segments) - 1):
                 current = self.segments[i]
@@ -508,9 +527,11 @@ class Player:
                 
                 pygame.draw.line(surface, color, start_pos, end_pos, current.thickness)
         
-        # Draw segment joints with level indicators
+        # Draw segment joints with level indicators using gentler scaling
         for i, segment in enumerate(self.segments):
-            joint_size = max(2, int(segment.thickness // 2 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)))
+            # Use gentler scaling for joint size
+            scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.5  # Slower shrinking
+            joint_size = max(2, int(segment.thickness // 2 * scale_factor))
             # Color joint based on level
             joint_colors = [(20, 80, 20), (40, 100, 40), (60, 120, 60), (80, 140, 80), (100, 160, 100)]
             joint_color = joint_colors[min(segment.level, len(joint_colors) - 1)]
@@ -518,23 +539,26 @@ class Player:
             pygame.draw.circle(surface, joint_color, 
                              (int(segment.position.x), int(segment.position.y)), joint_size)
             
-            # Draw level number for debugging (scaled font)
+            # Draw level number for debugging with gentler font scaling
             if segment.level > 0:
-                font_size = max(12, int(20 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)))
+                font_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.5  # Slower shrinking
+                font_size = max(12, int(20 * font_scale_factor))
                 font = pygame.font.Font(None, font_size)
                 text = font.render(str(segment.level), True, (255, 255, 255))
                 surface.blit(text, (int(segment.position.x) - 5, int(segment.position.y) - 10))
 
-        # Draw base scaled in update base scale
+        # Draw base ON TOP of segments - this is the key change!
         surface.blit(self.base_image, self.base_rect)
 
-        # Draw head
+        # Draw head on top of everything
         surface.blit(self.head_image, self.head_rect)
     
     def draw_debug_info(self, surface):
-        """Draw debug information about current segment structure"""
+        """Draw debug information about current segment structure with gentler scaling"""
         y_offset = 10
-        font_size = max(16, int(24 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER)))
+        # Use gentler scaling for font size
+        font_scale_factor = (self.pixels_per_meter / INITIAL_PIXELS_PER_METER) ** 0.5  # Slower shrinking
+        font_size = max(16, int(24 * font_scale_factor))
         font = pygame.font.Font(None, font_size)
         
         # Show segment pattern
@@ -544,7 +568,7 @@ class Player:
         
         text = font.render(f"Pattern: {pattern}", True, (255, 255, 255))
         surface.blit(text, (10, y_offset))
-        y_offset += int(25 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER))
+        y_offset += int(25 * font_scale_factor)
         
         # Show segment counts by level
         level_counts = {}
@@ -558,4 +582,4 @@ class Player:
             mass = level_masses[level]
             text = font.render(f"Level {level}: {count} segments (mass: {mass:.1f})", True, (255, 255, 255))
             surface.blit(text, (10, y_offset))
-            y_offset += int(25 * (self.pixels_per_meter / INITIAL_PIXELS_PER_METER))
+            y_offset += int(25 * font_scale_factor)
