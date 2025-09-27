@@ -17,7 +17,7 @@ class Game:
         pygame.mixer.init()
         pygame.init()
         pygame.font.init()
-        pygame.display.set_caption("Pyweek 40")
+        pygame.display.set_caption("Green Savior (Pyweek 40)")
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         
