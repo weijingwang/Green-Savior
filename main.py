@@ -4,6 +4,7 @@ from player import Player
 from game_object import ObjectManager
 from utils import world_to_screen_x, incremental_add
 from light import LightManager
+from dialogue import DialogueManager
 
 pygame.mixer.init()
 pygame.init()
@@ -27,7 +28,8 @@ object_manager = ObjectManager()
 # In your main game loop:
 light_manager = LightManager()
 
-
+# Create dialogue manager
+dialogue_manager = DialogueManager()
 
 running = True
 current_height = STARTING_HEIGHT # meters
@@ -46,13 +48,19 @@ while running:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE and not space_pressed:
                 space_pressed = True
-                # Add neck segment
-                player.add_segment()
-                current_height += PLANT_SEGMENT_HEIGHT
                 
-                # Calculate speed increment for this single segment
-                speed_increment = (0.4 * PLANT_SEGMENT_HEIGHT / FPS) * (1 / (1 + SPEED_FALLOFF_PARAM * current_height))
-                speed_x += speed_increment
+                # Check if dialogue is active
+                if dialogue_manager.is_active():
+                    # If dialogue is active, advance it instead of adding segment
+                    dialogue_manager.advance_dialogue()
+                # else:
+                #     # Normal game behavior: add neck segment
+                #     player.add_segment()
+                #     current_height += PLANT_SEGMENT_HEIGHT
+                    
+                #     # Calculate speed increment for this single segment
+                #     speed_increment = (0.4 * PLANT_SEGMENT_HEIGHT / FPS) * (1 / (1 + SPEED_FALLOFF_PARAM * current_height))
+                #     speed_x += speed_increment
         elif event.type == pygame.KEYUP:
             if event.key == pygame.K_SPACE:
                 space_pressed = False
@@ -72,6 +80,11 @@ while running:
 
     current_height, speed_x = light_manager.update(world_x, player.pixels_per_meter, current_height, GROUND_Y, player.head_rect, player, current_height, speed_x)
 
+    # Check for dialogue triggers based on current height
+    dialogue_manager.trigger_dialogue(current_height)
+    
+    # Update dialogue manager (handles fade out)
+    dialogue_manager.update()
 
     # Draw background
     screen.fill((169, 173, 159)) # day sky
@@ -93,9 +106,11 @@ while running:
 
     light_manager.draw_all(screen, world_x, player.pixels_per_meter, GROUND_Y)
 
-
     # Draw player
     player.draw(screen)
+
+    # Draw dialogue (this should be drawn on top of everything else)
+    dialogue_manager.draw(screen)
 
     # UI
     height_text = font.render(f"Height: {current_height:.2f} m", True, (255, 255, 255))
