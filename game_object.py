@@ -1,19 +1,17 @@
 import pygame, random, os
 from constants import *
-from utils import world_to_screen_x, incremental_add
+
+# print(1/player.pixels_per_meter * world_x + SCREEN_CENTER_X) # This gets the screen center
 
 
 class ObjectManager:
     def __init__(self):
         self.objects = pygame.sprite.Group()
-        self.last_spawned_x = 0.0
-        self.base_spawn_distance = 0.1  # base spawn distance for small objects
-        
+        self.last_spawned_x = 0.0        
         # Cache for scaled images - key: (obj_type, scale_factor), value: scaled_surface
         self.scaled_image_cache = {}
         # Cache for original images - key: obj_type, value: original_surface
         self.original_image_cache = {}
-
 
         # Define object layers for a proper city
         self.ground_objects = [
@@ -60,7 +58,7 @@ class ObjectManager:
         ]
 
 
-    def get_scaled_spawn_distance(self, current_height):
+    def get_scaled_spawn_distance(self, current_height): # in meters!!!!
         """Scale spawn distance based on current height - bigger objects need more space"""
         # Scale spawn distance proportionally to height, with minimum and maximum bounds        
         # Set reasonable bounds
@@ -154,9 +152,9 @@ class ObjectManager:
         return []
 
     def get_visible_range(self, world_x, pixels_per_meter):
-        screen_meters = SCREEN_WIDTH / pixels_per_meter
-        buffer = screen_meters * 1.5  # larger buffer for smoother spawning
-        return world_x - buffer, world_x + screen_meters + buffer
+        screen_meters = SCREEN_CENTER_X / pixels_per_meter
+        buffer = screen_meters * 1.1  # larger buffer for smoother spawning
+        return world_x - buffer, world_x + buffer
 
     def select_object_from_list(self, object_list):
         """Select an object from a weighted list"""
@@ -411,5 +409,5 @@ class GameObject(pygame.sprite.Sprite):
         """Draw the sprite at a given x-position."""
         if self.rect and self.image_scaled:
             self.rect.x = x_position
-            pygame.draw.rect(screen, (255, 0, 255), self.rect, 2)  # 2 = line thickness
+            # pygame.draw.rect(screen, (255, 0, 255), self.rect, 2)  # 2 = line thickness
             screen.blit(self.image_scaled, self.rect)

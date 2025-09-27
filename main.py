@@ -30,7 +30,7 @@ world_x = 0 # where you currently are in the world in meters
 space_pressed = False
 
 while running:
-    print(player.pixels_per_meter, player.target_pixels_per_meter)
+    print(1/player.pixels_per_meter * world_x + SCREEN_CENTER_X) # This gets the screen center
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
