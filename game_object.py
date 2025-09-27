@@ -7,7 +7,7 @@ class ObjectManager:
     def __init__(self):
         self.objects = pygame.sprite.Group()
         self.last_spawned_x = 0.0
-        self.base_spawn_distance = 0.3  # base spawn distance for small objects
+        self.base_spawn_distance = 0.1  # base spawn distance for small objects
         
         # Cache for scaled images - key: (obj_type, scale_factor), value: scaled_surface
         self.scaled_image_cache = {}
@@ -62,66 +62,34 @@ class ObjectManager:
 
     def get_scaled_spawn_distance(self, current_height):
         """Scale spawn distance based on current height - bigger objects need more space"""
-        # Scale spawn distance proportionally to height, with minimum and maximum bounds
-        scale_factor = max(1.0, current_height / 2.0)  # Start scaling at 2m height
-        scaled_distance = self.base_spawn_distance * scale_factor
-        
+        # Scale spawn distance proportionally to height, with minimum and maximum bounds        
         # Set reasonable bounds
         min_distance = 0.3  # 30cm minimum
-        max_distance = 50.0  # 50m maximum
         
-        return max(min_distance, min(max_distance, scaled_distance))
+        return min_distance
 
     def get_or_load_original_image(self, obj_type):
         """Get original image from cache or load it"""
         if obj_type in self.original_image_cache:
             return self.original_image_cache[obj_type]
             
-        try:
-            # Handle building images vs regular object images
-            if obj_type.startswith('buildings/'):
-                image_path = os.path.join("assets/images", obj_type)
-            elif obj_type == 'gun_building':
-                image_path = os.path.join("assets/images/objects", "gun_building.png")
-            elif obj_type == 'bone_tower':
-                image_path = os.path.join("assets/images/objects", "bone_tower.png")
-            elif obj_type == 'skyscraper':
-                image_path = os.path.join("assets/images/objects", "skyscraper.png")
-            else:
-                image_path = os.path.join("assets/images/objects", f"{obj_type}.png")
-                
-            image = pygame.image.load(image_path).convert_alpha()
-            self.original_image_cache[obj_type] = image
-            return image
+        # Handle building images vs regular object images
+        if obj_type.startswith('buildings/'):
+            image_path = os.path.join("assets/images", obj_type)
+        else:
+            image_path = os.path.join("assets/images/objects", f"{obj_type}.png")
             
-        except pygame.error as e:
-            print(f"Could not load image {image_path}: {e}")
-            # Create a fallback colored rectangle - use estimated height for sizing
-            fallback_height = 100  # Default fallback height in pixels
-            if 'cockroach' in obj_type or 'mouse' in obj_type:
-                fallback_height = 20
-            elif 'person' in obj_type or 'car' in obj_type:
-                fallback_height = 50
-            elif 'building' in obj_type:
-                fallback_height = 200
-                
-            image = pygame.Surface((50, fallback_height))
-            # Color code by type
-            if 'cockroach' in obj_type or 'mouse' in obj_type:
-                image.fill((255, 255, 0))  # Yellow for small creatures
-            elif 'person' in obj_type or 'car' in obj_type:
-                image.fill((0, 255, 0))    # Green for people/cars
-            else:
-                image.fill((128, 128, 128))  # Gray for buildings
-                
-            self.original_image_cache[obj_type] = image
-            return image
+        image = pygame.image.load(image_path).convert_alpha()
+        self.original_image_cache[obj_type] = image
+        return image
+            
+
 
     def get_or_create_scaled_image(self, obj_type, height_meters, pixels_per_meter):
         """Get scaled image from cache or create it"""
         # Round scale factor to reduce cache size and improve hit rate
         target_height_pixels = height_meters * pixels_per_meter
-        scale_factor = round(target_height_pixels / 10) * 10  # Round to nearest 10 pixels
+        scale_factor = target_height_pixels
         
         cache_key = (obj_type, scale_factor)
         
@@ -160,8 +128,8 @@ class ObjectManager:
         Determine if an object should be spawned based on size relative to current height.
         Only spawn if object height is between 1/10th and 2x the current height.
         """
-        min_height = current_height / 10.0
-        max_height = current_height * 2.0
+        min_height = current_height / 20.0
+        max_height = current_height * 3.0
         
         return min_height <= object_height <= max_height
 
