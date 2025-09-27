@@ -250,7 +250,7 @@ class ObjectManager:
     def create_object(self, obj_type, height, world_pos, pixels_per_meter):
         """Create a single object"""
         try:
-            print(f"Creating {obj_type} at world position {world_pos:.2f}")
+            # print(f"Creating {obj_type} at world position {world_pos:.2f}")
 
             obj = GameObject(
                 obj_type=obj_type,
@@ -262,11 +262,11 @@ class ObjectManager:
 
             # If GameObject failed to initialize properly, don't add it
             if getattr(obj, "to_kill", False):
-                print(f"Not adding {obj_type} at {world_pos:.2f} (marked to_kill immediately)")
+                # print(f"Not adding {obj_type} at {world_pos:.2f} (marked to_kill immediately)")
                 return
 
             if getattr(obj, "rect", None) is None or getattr(obj, "image_scaled", None) is None:
-                print(f"Not adding {obj_type} at {world_pos:.2f} (missing rect/image_scaled)")
+                # print(f"Not adding {obj_type} at {world_pos:.2f} (missing rect/image_scaled)")
                 return
 
             # attach world pos and type, then add to group
@@ -275,7 +275,8 @@ class ObjectManager:
             self.objects.add(obj)
 
         except Exception as e:
-            print(f"Error creating object {obj_type}: {e}")
+            pass
+            # print(f"Error creating object {obj_type}: {e}")
 
     def update_spawning(self, world_x, pixels_per_meter, current_height):
         """Main spawning update function"""
@@ -288,7 +289,7 @@ class ObjectManager:
             
             # Check if existing object is still within size range
             if not self.should_spawn_object(obj_height, current_height):
-                print(f"Removing {getattr(obj, 'obj_type', '?')} (height {obj_height:.2f}m out of range for current height {current_height:.2f}m)")
+                # print(f"Removing {getattr(obj, 'obj_type', '?')} (height {obj_height:.2f}m out of range for current height {current_height:.2f}m)")
                 obj.kill()
                 continue
                 
@@ -318,7 +319,7 @@ class ObjectManager:
             
             # Kill objects only when their right edge has moved past the left screen edge
             if obj_right_edge_world < kill_x_world:
-                print(f"Killing object {getattr(obj, 'obj_type', '?')} at {world_pos:.2f} (right edge {obj_right_edge_world:.2f} past left edge {kill_x_world:.2f})")
+                # print(f"Killing object {getattr(obj, 'obj_type', '?')} at {world_pos:.2f} (right edge {obj_right_edge_world:.2f} past left edge {kill_x_world:.2f})")
                 obj.kill()
 
     def draw_all(self, screen, world_x, pixels_per_meter):
@@ -358,7 +359,7 @@ class ObjectManager:
         
         # Debug info
         kill_x, spawn_x = self.get_spawn_bounds(world_x, pixels_per_meter)
-        print(f"Total objects: {len(self.objects)}, Drawn: {drawn_count}, Last spawned at: {self.last_spawned_x:.1f}, Kill bound: {kill_x:.1f}, Spawn bound: {spawn_x:.1f}, Cache size: {len(self.scaled_image_cache)}")
+        # print(f"Total objects: {len(self.objects)}, Drawn: {drawn_count}, Last spawned at: {self.last_spawned_x:.1f}, Kill bound: {kill_x:.1f}, Spawn bound: {spawn_x:.1f}, Cache size: {len(self.scaled_image_cache)}")
 
 
 class GameObject(pygame.sprite.Sprite):

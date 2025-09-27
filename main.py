@@ -3,6 +3,7 @@ from constants import *
 from player import Player
 from game_object import ObjectManager
 from utils import world_to_screen_x, incremental_add
+from light import LightManager
 
 pygame.mixer.init()
 pygame.init()
@@ -23,6 +24,11 @@ player = Player(SCREEN_CENTER_X, GROUND_Y)
 # Create object manager
 object_manager = ObjectManager()
 
+# In your main game loop:
+light_manager = LightManager()
+
+
+
 running = True
 current_height = STARTING_HEIGHT # meters
 current_height_pixels = INITIAL_SEGMENTS * INITIAL_PIXELS_PER_METER * PLANT_SEGMENT_HEIGHT # pixels
@@ -33,7 +39,7 @@ world_x = 0 # where you currently are in the world in meters
 space_pressed = False
 
 while running:
-    print(1/player.pixels_per_meter * world_x + SCREEN_CENTER_X) # This gets the screen center
+    # print(1/player.pixels_per_meter * world_x + SCREEN_CENTER_X) # This gets the screen center
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -64,6 +70,9 @@ while running:
     # Update object spawning - NOW PASSING CURRENT HEIGHT
     object_manager.update_spawning(world_x, player.pixels_per_meter, current_height)
 
+    current_height, speed_x = light_manager.update(world_x, player.pixels_per_meter, current_height, GROUND_Y, player.head_rect, player, current_height, speed_x)
+
+
     # Draw background
     screen.fill((169, 173, 159)) # day sky
     screen.blit(sky_img, (0, 0))
@@ -82,6 +91,9 @@ while running:
     # Draw all objects
     object_manager.draw_all(screen, world_x, player.pixels_per_meter)
 
+    light_manager.draw_all(screen, world_x, player.pixels_per_meter, GROUND_Y)
+
+
     # Draw player
     player.draw(screen)
 
@@ -99,5 +111,6 @@ while running:
     pygame.display.flip()
 
     world_x += speed_x 
-
+    fps = clock.get_fps()
+    print(f"FPS: {fps:.3f}")
     clock.tick(60)
