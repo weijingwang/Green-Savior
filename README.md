@@ -1,5 +1,8 @@
 # Green Savior
 
+![screenshot](green_savior_screenshot.png "green savior screenshot")
+
+
 Green Savior is a game made by team chinkaraoshiman (speedlimit35, kingemu246, and chis) for game jam Pyweek40 with the theme: Skyscraper city.
 
 This game is about the last plant on the deforested earth in the future. In his last moments, a wealthy business person releases the green savior upon the world in hopes to redeem his sinful past. Collect the lights to grow bigger and save the planet.
