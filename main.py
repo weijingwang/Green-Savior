@@ -67,7 +67,7 @@ class Game:
         self.win_screen = WinScreen(self.screen, self.font, self.title_font, self.subtitle_font)
         
         # Start title music
-        self.play_music(self.title_music, 0.3, loops=-1)
+        self.play_music(self.title_music, 0.25, loops=-1)
         
     def play_music(self, music_file, volume, loops=0):
         """Play music with specified volume and loop settings"""
@@ -99,7 +99,7 @@ class Game:
                         self.state = GameState.GAME
                         self.gameplay.reset()
                         # Start game music
-                        self.play_music(self.game_music, 0.4, loops=-1)
+                        self.play_music(self.game_music, 0.3, loops=-1)
                     elif self.state == GameState.GAME:
                         # Pass Enter key to gameplay to handle 40m transition
                         if self.gameplay.handle_event(event):
@@ -169,7 +169,7 @@ class Game:
                 self.state = GameState.GAME
                 self.gameplay.reset()
                 # Start game music
-                self.play_music(self.game_music, 0.4, loops=-1)
+                self.play_music(self.game_music, 0.3, loops=-1)
                 
         elif self.state == GameState.GAME:
             if self.gameplay.update():
@@ -177,14 +177,14 @@ class Game:
                 self.state = GameState.ENDING_SLIDESHOW
                 self.ending_slideshow.reset()
                 # Start ending music
-                self.play_music(self.ending_music, 0.5, loops=-1)
+                self.play_music(self.ending_music, 0.25, loops=-1)
                 
         elif self.state == GameState.ENDING_SLIDESHOW:
             if self.ending_slideshow.update():
                 # Ending slideshow complete, go to win screen
                 self.state = GameState.WIN
                 # Make sure the ending music loops for the win screen
-                self.play_music(self.ending_music, 0.5, loops=-1)
+                self.play_music(self.ending_music, 0.25, loops=-1)
                 
         elif self.state == GameState.WIN:
             self.win_screen.update()
@@ -197,7 +197,7 @@ class Game:
         self.gameplay.reset()
         self.ending_slideshow.reset()
         # Resume title music
-        self.play_music(self.title_music, 0.3, loops=-1)
+        self.play_music(self.title_music, 0.25, loops=-1)
     
     def draw(self):
         """Draw current state"""
