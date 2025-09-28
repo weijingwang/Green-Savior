@@ -11,9 +11,13 @@ Space: continue
 
 Enter: skip cutscenes
 
+## Requirements
+Used Python 3.12.4 and Pygame-ce 2.5.5
+
 ## Run it
 To run, do
 ```
+python -m pip install -r requirements.txt
 python main.py
 ```
 
