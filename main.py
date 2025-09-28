@@ -183,7 +183,7 @@ class Game:
             if self.ending_slideshow.update():
                 # Ending slideshow complete, go to win screen
                 self.state = GameState.WIN
-                # Don't change music - let ending music continue playing
+                # Music continues playing - no music change needed
                 
         elif self.state == GameState.WIN:
             self.win_screen.update()
