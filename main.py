@@ -177,13 +177,14 @@ class Game:
                 self.state = GameState.ENDING_SLIDESHOW
                 self.ending_slideshow.reset()
                 # Start ending music
-                self.play_music(self.ending_music, 0.5, loops=0)
+                self.play_music(self.ending_music, 0.5, loops=-1)
                 
         elif self.state == GameState.ENDING_SLIDESHOW:
             if self.ending_slideshow.update():
                 # Ending slideshow complete, go to win screen
                 self.state = GameState.WIN
-                # Music continues playing - no music change needed
+                # Make sure the ending music loops for the win screen
+                self.play_music(self.ending_music, 0.5, loops=-1)
                 
         elif self.state == GameState.WIN:
             self.win_screen.update()
